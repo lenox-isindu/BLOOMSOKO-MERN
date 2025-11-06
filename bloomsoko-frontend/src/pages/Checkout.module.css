@@ -1,0 +1,466 @@
+/* Add these styles to your existing Checkout.module.css */
+
+.checkoutPage {
+    min-height: 100vh;
+    background: #f8fdf8;
+}
+
+.checkoutHeader {
+    padding: 2rem 5%;
+    background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+    color: white;
+    text-align: center;
+}
+
+.checkoutHeader h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.checkoutHeader p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.breadcrumbs {
+    color: #e8f5e9;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.breadcrumbs a {
+    color: white;
+    text-decoration: none;
+    transition: opacity 0.3s ease;
+}
+
+.breadcrumbs a:hover {
+    text-decoration: underline;
+    opacity: 0.9;
+}
+
+.breadcrumbs span {
+    color: #c8e6c9;
+    font-weight: 500;
+}
+
+.checkoutContainer {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 2rem;
+    padding: 2rem 5%;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.checkoutForm {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e8f5e9;
+}
+
+.formSection {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #e8f5e9;
+}
+
+.formSection:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.formSection h3 {
+    color: #2E7D32;
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.formGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.formGroup {
+    margin-bottom: 1rem;
+}
+
+.formGroup label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #2d3748;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.formGroup input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e8f5e9;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #f8fdf8;
+    transition: all 0.3s ease;
+}
+
+.formGroup input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+    background: white;
+}
+
+.cardSection {
+    margin-bottom: 1rem;
+}
+
+.cardSection label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #2d3748;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.cardElementContainer {
+    padding: 1rem;
+    border: 1px solid #e8f5e9;
+    border-radius: 8px;
+    background: #f8fdf8;
+    margin-bottom: 0.5rem;
+}
+
+.cardHint {
+    font-size: 0.85rem;
+    color: #718096;
+    font-style: italic;
+    margin-top: 0.5rem;
+}
+
+.payButton {
+    width: 100%;
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+}
+
+.payButton:hover:not(:disabled) {
+    background: linear-gradient(135deg, #45a049, #1b5e20);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
+}
+
+.payButton:disabled {
+    background: #a0aec0;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.buttonLoading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.securityNote {
+    text-align: center;
+    color: #718096;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+/* Order Summary Styles */
+.orderSummary {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e8f5e9;
+    height: fit-content;
+    position: sticky;
+    top: 2rem;
+}
+
+.orderSummary h3 {
+    color: #2E7D32;
+    margin-bottom: 1.5rem;
+    font-size: 1.3rem;
+    text-align: center;
+    border-bottom: 2px solid #e8f5e9;
+    padding-bottom: 1rem;
+}
+
+.orderItems {
+    margin-bottom: 1.5rem;
+}
+
+.orderItem {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid #e8f5e9;
+}
+
+.orderItem:last-child {
+    border-bottom: none;
+}
+
+.itemImage {
+    width: 50px;
+    height: 50px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f8fdf8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.itemImage img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.noImage {
+    font-size: 1.5rem;
+}
+
+.itemDetails {
+    flex: 1;
+}
+
+.itemDetails h4 {
+    color: #2d3748;
+    margin-bottom: 0.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.itemDetails p {
+    color: #718096;
+    font-size: 0.85rem;
+}
+
+.itemPrice {
+    color: #2E7D32;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.summaryTotal {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #e8f5e9;
+}
+
+.totalRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    color: #4a5568;
+}
+
+.totalRow.final {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #2E7D32;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e8f5e9;
+}
+
+/* Success State */
+.successContainer {
+    max-width: 600px;
+    margin: 4rem auto;
+    padding: 3rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e8f5e9;
+    text-align: center;
+}
+
+.successIcon {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+}
+
+.successContainer h1 {
+    color: #2E7D32;
+    margin-bottom: 1rem;
+    font-size: 2.5rem;
+}
+
+.successMessage {
+    color: #718096;
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.successDetails {
+    background: #f8fdf8;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    text-align: left;
+}
+
+.successDetails p {
+    margin-bottom: 0.5rem;
+    color: #4a5568;
+}
+
+.successActions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.continueShopping {
+    padding: 0.75rem 2rem;
+    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.continueShopping:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
+}
+
+.viewOrders {
+    padding: 0.75rem 2rem;
+    background: white;
+    color: #4CAF50;
+    border: 2px solid #4CAF50;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.viewOrders:hover {
+    background: #4CAF50;
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* Guarantee Section */
+.guarantee {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e8f5e9;
+}
+
+.guaranteeItem {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: #f8fdf8;
+    border-radius: 8px;
+}
+
+.guaranteeItem span {
+    font-size: 1.5rem;
+}
+
+.guaranteeItem div {
+    flex: 1;
+}
+
+.guaranteeItem strong {
+    color: #2E7D32;
+    font-size: 0.9rem;
+}
+
+.guaranteeItem p {
+    color: #718096;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .checkoutContainer {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    
+    .orderSummary {
+        position: static;
+        order: -1;
+    }
+}
+
+@media (max-width: 768px) {
+    .checkoutHeader {
+        padding: 1.5rem 5%;
+    }
+    
+    .checkoutHeader h1 {
+        font-size: 2rem;
+    }
+    
+    .checkoutContainer {
+        padding: 1.5rem 5%;
+    }
+    
+    .checkoutForm,
+    .orderSummary {
+        padding: 1.5rem;
+    }
+    
+    .formGrid {
+        grid-template-columns: 1fr;
+    }
+    
+    .successActions {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .checkoutPage {
+        padding: 0;
+    }
+    
+    .checkoutHeader h1 {
+        font-size: 1.75rem;
+    }
+    
+    .checkoutForm,
+    .orderSummary,
+    .successContainer {
+        padding: 1rem;
+        margin: 1rem;
+        border-radius: 8px;
+    }
+    
+    .breadcrumbs {
+        font-size: 0.8rem;
+    }
+}

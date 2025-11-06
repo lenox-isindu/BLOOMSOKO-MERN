@@ -1,4 +1,3 @@
-// Scroll animations
 export const initScrollAnimations = () => {
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {

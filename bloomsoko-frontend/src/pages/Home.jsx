@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { productAPI, categoryAPI } from '../services/api.js';
-import './Home.css'; // We'll create this CSS file
-import { initScrollAnimations, initFloatingImages, initSmoothScroll } from '../utils/animations';
-
+import styles from './Home.module.css';
 
 const Home = () => {
   const [featuredProducts, setFeaturedProducts] = useState([]);
@@ -16,11 +14,11 @@ const Home = () => {
   });
   const [loading, setLoading] = useState(true);
   const headerRef = useRef(null);
+  const heroRef = useRef(null);
 
   useEffect(() => {
     const fetchHomeData = async () => {
       try {
-        // Fetch featured products
         const productsResponse = await productAPI.getAll();
         const allProducts = productsResponse.data.products || [];
         const featured = allProducts
@@ -28,11 +26,9 @@ const Home = () => {
           .slice(0, 6);
         setFeaturedProducts(featured);
 
-        // Fetch main categories
         const categoriesResponse = await categoryAPI.getMain();
         setCategories(categoriesResponse.data);
 
-        // Set stats (you can make these dynamic later)
         setStats({
           farmers: 500,
           products: allProducts.length,
@@ -52,13 +48,12 @@ const Home = () => {
   }, []);
 
   const setupAnimations = () => {
-    // Header scroll effect
     const handleScroll = () => {
       if (headerRef.current) {
         if (window.scrollY > 50) {
-          headerRef.current.classList.add('scrolled');
+          headerRef.current.classList.add(styles.scrolled);
         } else {
-          headerRef.current.classList.remove('scrolled');
+          headerRef.current.classList.remove(styles.scrolled);
         }
       }
     };
@@ -69,229 +64,211 @@ const Home = () => {
 
   if (loading) {
     return (
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
+      <div className={styles.loadingContainer}>
+        <div className={styles.loadingSpinner}></div>
         <div>Loading Bloomsoko...</div>
       </div>
     );
   }
 
   return (
-    <div className="home-page">
+    <div className={styles.homePage}>
       {/* Header */}
-      <header ref={headerRef} className="main-header">
-        <div className="logo">Bloom <span>Soko</span></div>
-        <nav>
+      <header ref={headerRef} className={styles.mainHeader}>
+        <div className={styles.logo}>Bloom <span>Soko</span></div>
+        <nav className={styles.nav}>
           <ul>
-            <li><a href="#home" className="active">Home</a></li>
-            <li><a href="#shop">Products</a></li>
-            <li><a href="#categories">Categories</a></li>
-            <li><a href="#about">About</a></li>
-            <li><a href="/shop" className="shop-now-btn">Shop now!</a></li>
+            <li><Link to="/" className={styles.navLink}>Home</Link></li>
+            <li><Link to="/products" className={styles.navLink}>Products</Link></li>
+            <li><Link to="/categories" className={styles.navLink}>Categories</Link></li>
+            <li><a href="#about" className={styles.navLink}>About</a></li>
+            <li><Link to="/products" className={styles.shopNowBtn}>Shop Now</Link></li>
           </ul>
         </nav>
       </header>
 
       {/* Hero Section */}
-      <section id="home" className="hero">
-        <div className="hero-content animate-on-scroll">
-          <h1>
-            Grow, Harvest, <span>Thrive</span>
-          </h1>
-          <p>
-            Book agricultural products while they're still growing and secure your harvest at the best prices. 
-            Our platform connects you directly with farmers and producers.
-          </p>
-          <Link to="/shop" className="cta-button animate-pulse">
-            Shop Now
-          </Link>
-        </div>
-        <div className="animated-bg">
-          <div id="particles-js"></div>
-          <img 
-            src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=500" 
-            alt="Farm produce" 
-            className="floating-image"
-          />
-          <img 
-            src="https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?auto=format&fit=crop&w=500" 
-            alt="Cosmetics" 
-            className="floating-image"
-          />
-          <img 
-            src="https://images.unsplash.com/photo-1470114716159-e389f8712fda?auto=format&fit=crop&w=500" 
-            alt="Timber" 
-            className="floating-image"
-          />
+      <section ref={heroRef} className={styles.hero}>
+        <div className={styles.heroContent}>
+          <div className={styles.heroText}>
+            <h1 className={styles.heroTitle}>
+              Fresh From Farm <span className={styles.accent}>To Your Home</span>
+            </h1>
+            <p className={styles.heroDescription}>
+              Discover the finest agricultural products, beauty essentials, fashion items, 
+              and household goods. Book growing products and secure the best prices directly from producers.
+            </p>
+            <div className={styles.heroButtons}>
+              <Link to="/products" className={styles.ctaPrimary}>
+                Shop Products
+              </Link>
+              <Link to="/categories" className={styles.ctaSecondary}>
+                Browse Categories
+              </Link>
+            </div>
+          </div>
+          <div className={styles.heroVisual}>
+            <div className={styles.floatingElement}></div>
+            <div className={styles.floatingElement}></div>
+            <div className={styles.floatingElement}></div>
+          </div>
         </div>
       </section>
 
       {/* Categories Section */}
-      <section id="categories" className="category-section">
-        <div className="section-title animate-on-scroll">
-          <h2>Our Categories</h2>
-          <p>Explore our diverse range of products</p>
+      <section className={styles.categoriesSection}>
+        <div className={styles.sectionHeader}>
+          <h2>Shop By Category</h2>
+          <p>Explore our diverse collection of products</p>
         </div>
-        <div className="categories-grid">
+        <div className={styles.categoriesGrid}>
           {categories.map((category, index) => (
-            <CategoryCard 
-              key={category._id} 
-              category={category} 
-              delay={index * 0.1}
-            />
+            <CategoryCard key={category._id} category={category} index={index} />
           ))}
         </div>
       </section>
 
-      {/* Featured Products Slider */}
-      <section id="shop" className="products-slider">
-        <div className="section-title animate-on-scroll">
+      {/* Featured Products */}
+      <section className={styles.featuredSection}>
+        <div className={styles.sectionHeader}>
           <h2>Featured Products</h2>
-          <p>Discover our most popular items</p>
+          <p>Handpicked items just for you</p>
         </div>
-        
-        <div className="slider-container">
-          <div className="product-slider">
-            {featuredProducts.map((product, index) => (
-              <ProductSlide key={product._id} product={product} index={index} />
-            ))}
-          </div>
-          
-          <div className="slider-arrows">
-            <div className="slider-arrow prev-arrow">&#10094;</div>
-            <div className="slider-arrow next-arrow">&#10095;</div>
-          </div>
+        <div className={styles.productsGrid}>
+          {featuredProducts.map((product, index) => (
+            <ProductCard key={product._id} product={product} index={index} />
+          ))}
         </div>
+        {featuredProducts.length === 0 && (
+          <div className={styles.noProducts}>
+            <p>No featured products available yet</p>
+            <Link to="/products" className={styles.ctaSecondary}>
+              Explore All Products
+            </Link>
+          </div>
+        )}
       </section>
 
       {/* Stats Section */}
-      <section className="stats-section">
-        <div className="section-title animate-on-scroll">
-          <h2>Why Choose Bloom Soko?</h2>
-        </div>
-        <div className="stats-grid">
-          <StatItem 
-            number={stats.farmers} 
-            label="Active Farmers" 
-            delay="0.1s" 
-            suffix="+"
-          />
-          <StatItem 
-            number={stats.products} 
-            label="Products Available" 
-            delay="0.2s" 
-            suffix="+"
-          />
-          <StatItem 
-            number={stats.satisfaction} 
-            label="Satisfaction Rate" 
-            delay="0.3s" 
-            suffix="%"
-          />
-          <StatItem 
-            number={stats.delivery} 
-            label="Delivery Hours" 
-            delay="0.4s" 
-            suffix="hr"
-          />
+      <section className={styles.statsSection}>
+        <div className={styles.statsContainer}>
+          <div className={styles.statsContent}>
+            <h2>Why Choose Bloom Soko?</h2>
+            <p>We're committed to bringing you the best products with exceptional service</p>
+          </div>
+          <div className={styles.statsGrid}>
+            <StatItem number={stats.farmers} label="Active Farmers" suffix="+" />
+            <StatItem number={stats.products} label="Products" suffix="+" />
+            <StatItem number={stats.satisfaction} label="Satisfaction Rate" suffix="%" />
+            <StatItem number={stats.delivery} label="Delivery Time" suffix="hr" />
+          </div>
         </div>
       </section>
 
-      {/* Newsletter */}
-      <section className="newsletter animate-on-scroll">
-        <h2>Stay Updated</h2>
-        <p>Subscribe to our newsletter for the latest offers and farming tips</p>
-        <form className="newsletter-form">
-          <input 
-            type="email" 
-            placeholder="Your email address" 
-            className="newsletter-input" 
-            required 
-          />
-          <button type="submit" className="newsletter-button">
-            Subscribe
-          </button>
-        </form>
+      {/* CTA Section */}
+      <section className={styles.ctaSection}>
+        <div className={styles.ctaContent}>
+          <h2>Ready to Explore?</h2>
+          <p>Join thousands of satisfied customers shopping with Bloom Soko</p>
+          <Link to="/products" className={styles.ctaPrimary}>
+            Start Shopping Now
+          </Link>
+        </div>
       </section>
 
       {/* Footer */}
-      <footer>
-        <div className="footer-logo">Bloom Soko</div>
-        <p>Connecting growers with buyers since 2023</p>
-        <div className="social-links">
-          <a href="#"><i className="fab fa-facebook-f"></i></a>
-          <a href="#"><i className="fab fa-twitter"></i></a>
-          <a href="#"><i className="fab fa-instagram"></i></a>
-          <a href="#"><i className="fab fa-linkedin-in"></i></a>
+      <footer className={styles.footer}>
+        <div className={styles.footerContent}>
+          <div className={styles.footerBrand}>
+            <div className={styles.footerLogo}>Bloom Soko</div>
+            <p>Connecting growers with buyers since 2023</p>
+          </div>
+          <div className={styles.footerLinks}>
+            <div className={styles.linkGroup}>
+              <h4>Shop</h4>
+              <Link to="/products">All Products</Link>
+              <Link to="/categories">Categories</Link>
+              <Link to="/featured">Featured</Link>
+            </div>
+            <div className={styles.linkGroup}>
+              <h4>Company</h4>
+              <a href="#about">About Us</a>
+              <a href="#contact">Contact</a>
+              <a href="#careers">Careers</a>
+            </div>
+            <div className={styles.linkGroup}>
+              <h4>Support</h4>
+              <a href="#help">Help Center</a>
+              <a href="#shipping">Shipping</a>
+              <a href="#returns">Returns</a>
+            </div>
+          </div>
         </div>
-        <p>&copy; 2025 Bloom Soko. All rights reserved.</p>
+        <div className={styles.footerBottom}>
+          <p>&copy; 2025 Bloom Soko. All rights reserved.</p>
+          <div className={styles.socialLinks}>
+            <a href="#" aria-label="Facebook"><span>FB</span></a>
+            <a href="#" aria-label="Twitter"><span>TW</span></a>
+            <a href="#" aria-label="Instagram"><span>IG</span></a>
+          </div>
+        </div>
       </footer>
     </div>
   );
 };
 
 // Category Card Component
-const CategoryCard = ({ category, delay }) => {
+const CategoryCard = ({ category, index }) => {
+  const getCategoryLink = (categoryName) => {
+    const categoryMap = {
+      'Agricultural Produce': 'farm',
+      'Beauty': 'cosmetics',
+      'Fashion': 'fashion',
+      'Household': 'home'
+    };
+    return `/products?category=${categoryMap[categoryName] || 'all'}`;
+  };
+
   return (
-    <div 
-      className="category-card animate-on-scroll" 
-      data-delay={delay}
-      onMouseMove={(e) => {
-        const card = e.currentTarget;
-        const xAxis = (window.innerWidth / 2 - e.pageX) / 15;
-        const yAxis = (window.innerHeight / 2 - e.pageY) / 15;
-        card.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg) translateY(-10px) scale(1.03)`;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(-10px) scale(1.03)';
-      }}
-    >
-      <div 
-        className="category-img" 
-        style={{ 
-          backgroundImage: `url(${getCategoryImage(category.name)})` 
-        }}
-      ></div>
-      <div className="category-info">
+    <Link to={getCategoryLink(category.name)} className={styles.categoryCard}>
+      <div className={styles.categoryIcon}></div>
+      <div className={styles.categoryContent}>
         <h3>{category.name}</h3>
         <p>{category.description}</p>
       </div>
-    </div>
+      <div className={styles.categoryArrow}>→</div>
+    </Link>
   );
 };
 
-// Product Slide Component
-const ProductSlide = ({ product, index }) => {
+// Product Card Component
+const ProductCard = ({ product, index }) => {
   const isReady = product.productType === 'ready';
   const badge = getProductBadge(product);
 
   return (
-    <div className="product-slide">
-      <div className="product-card">
-        <div 
-          className="product-image" 
-          style={{ 
-            backgroundImage: `url(${product.featuredImage?.url || 'https://via.placeholder.com/300x200?text=Product+Image'})` 
-          }}
-        >
-          {badge && <span className={`product-badge ${badge.class}`}>{badge.text}</span>}
-        </div>
-        <div className="product-info">
-          <h3 className="product-title">{product.name}</h3>
-          <div className="product-price">KSh {product.price?.toLocaleString()}</div>
-          <p>{product.description?.substring(0, 80)}...</p>
-          <div className="product-meta">
-            <span>{isReady ? 'In Stock' : 'Pre-order'}</span>
-            <span>{product.inventory?.stock || 0} available</span>
-          </div>
+    <Link to={`/product/${product._id}`} className={styles.productCard}>
+      <div className={styles.productImage}>
+        {badge && <span className={`${styles.productBadge} ${styles[badge.class]}`}>{badge.text}</span>}
+      </div>
+      <div className={styles.productInfo}>
+        <h3 className={styles.productTitle}>{product.name}</h3>
+        <p className={styles.productDescription}>
+          {product.description?.substring(0, 60)}...
+        </p>
+        <div className={styles.productMeta}>
+          <span className={styles.productPrice}>KSh {product.price?.toLocaleString()}</span>
+          <span className={`${styles.productStatus} ${isReady ? styles.inStock : styles.preOrder}`}>
+            {isReady ? 'In Stock' : 'Pre-order'}
+          </span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 
 // Stat Item Component
-const StatItem = ({ number, label, delay, suffix }) => {
+const StatItem = ({ number, label, suffix }) => {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -308,38 +285,22 @@ const StatItem = ({ number, label, delay, suffix }) => {
       setCount(Math.floor(current));
     }, 16);
 
-
     return () => clearInterval(timer);
   }, [number]);
-  setTimeout(() => {
-    initScrollAnimations();
-    initFloatingImages();
-    initSmoothScroll();
-  }, 100);
 
   return (
-    <div className="stat-item animate-on-scroll" data-delay={delay}>
-      <div className="stat-number">
+    <div className={styles.statItem}>
+      <div className={styles.statNumber}>
         {count}{suffix}
       </div>
-      <p>{label}</p>
+      <p className={styles.statLabel}>{label}</p>
     </div>
   );
 };
 
 // Helper functions
-const getCategoryImage = (categoryName) => {
-  const images = {
-    'Agricultural Produce': 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600',
-    'Beauty': 'https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?auto=format&fit=crop&w=600',
-    'Fashion': 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=600',
-    'Household': 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?auto=format&fit=crop&w=600'
-  };
-  return images[categoryName] || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=600';
-};
-
 const getProductBadge = (product) => {
-  if (product.inventory?.stock === 0) return { text: 'Out of Stock', class: 'out-of-stock' };
+  if (product.inventory?.stock === 0) return { text: 'Out of Stock', class: 'outOfStock' };
   if (product.flags?.isNew) return { text: 'New', class: 'new' };
   if (product.flags?.onSale) return { text: 'Sale', class: 'sale' };
   if (product.flags?.isLimited) return { text: 'Limited', class: 'limited' };

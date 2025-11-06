@@ -118,7 +118,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create category
+//  category
 router.post('/', async (req, res) => {
   try {
     const category = new Category(req.body);

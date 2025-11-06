@@ -1,4 +1,3 @@
-
 @import './variables.css';
 
 /* Reset and base styles */
@@ -44,7 +43,7 @@ a:hover {
   color: var(--accent-gold);
 }
 
-/* Buttons  */
+/* Buttons - Updated with Gold Accent */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -183,9 +182,9 @@ a:hover {
 }
 
 .sidebar-nav-item.active {
-  background-color: rgba(255, 193, 7, 0.1); 
-  color: var(--accent-gold); 
-  border-left-color: var(--accent-gold); 
+  background-color: rgba(255, 193, 7, 0.1); /* Gold tint background */
+  color: var(--accent-gold); /* Gold text */
+  border-left-color: var(--accent-gold); /* Gold border */
   font-weight: 600;
 }
 

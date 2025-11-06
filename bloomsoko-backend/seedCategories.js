@@ -201,10 +201,16 @@ const seedCategories = async () => {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/bloomsoko');
     console.log(' Connected to MongoDB');
 
-   
-    await Category.deleteMany({});
+    // Drop the existing unique index on name field
+    try {
+      await mongoose.connection.collection('categories').dropIndex('name_1');
+      console.log(' Dropped unique index on name field');
+    } catch (error) {
+      console.log(' No existing unique index on name field, or already dropped');
+    }
+   await Category.deleteMany({});
     console.log(' Cleared existing categories');
-
+    
     // Create main categories (Level 1)
     const mainCategories = await Category.insertMany(categoriesData);
     console.log('Main categories created');
@@ -243,32 +249,53 @@ const seedCategories = async () => {
     });
 
     // Create Level 3 categories for fashion
-    const fashionSubSubsWithParents = fashionSubSubcategories.map((subsub, index) => {
-      let parentId;
+   // Create Level 3 categories for fashion - 
+console.log('Creating Level 3 categories...');
+console.log('Total fashion sub-subcategories:', fashionSubSubcategories.length);
 
-      if (index < 7) {
-        // First 7 are Men's Wear
-        parentId = subCategoryMap["Men's Wear"];
-      } else if (index < 14) {
-        // Next 7 are Women's Wear
-        parentId = subCategoryMap["Women's Wear"];
-      } else {
-        // Last 7 are Children's Wear
-        parentId = subCategoryMap["Children's Wear"];
-      }
+const fashionSubSubsWithParents = fashionSubSubcategories.map((subsub, index) => {
+  let parentId;
+  let categoryType;
 
-      return {
-        ...subsub,
-        parent: parentId,
-        level: 3,
-        status: 'active',
-        description: `${subsub.name} for ${index < 7 ? 'Men' : index < 14 ? 'Women' : 'Children'}`
-      };
-    });
+  if (index < 7) {
+    parentId = subCategoryMap["Men's Wear"];
+    categoryType = "Men's";
+  } else if (index < 14) {
+    parentId = subCategoryMap["Women's Wear"];
+    categoryType = "Women's";
+  } else {
+    parentId = subCategoryMap["Children's Wear"];
+    categoryType = "Children's";
+  }
 
-    await Category.insertMany(fashionSubSubsWithParents);
-    console.log(' Fashion sub-subcategories created');
+  console.log(`Index ${index}: ${subsub.name} -> ${categoryType} Wear (Parent ID: ${parentId})`);
 
+  return {
+    ...subsub,
+    parent: parentId,
+    level: 3,
+    status: 'active',
+    description: `${subsub.name} for ${categoryType.toLowerCase()}`
+  };
+});
+
+await Category.insertMany(fashionSubSubsWithParents);
+console.log('Fashion sub-subcategories created');
+
+// VERIFY THE CREATION
+console.log('\nVerifying category creation:');
+const mensChildren = await Category.find({ parent: subCategoryMap["Men's Wear"] });
+const womensChildren = await Category.find({ parent: subCategoryMap["Women's Wear"] });
+const childrensChildren = await Category.find({ parent: subCategoryMap["Children's Wear"] });
+
+console.log(`Men's Wear children: ${mensChildren.length}`);
+console.log(`Women's Wear children: ${womensChildren.length}`);
+console.log(`Children's Wear children: ${childrensChildren.length}`);
+
+// Log the actual children names
+console.log('\nMen\'s Wear children:', mensChildren.map(c => c.name));
+console.log('Women\'s Wear children:', womensChildren.map(c => c.name));
+console.log('Children\'s Wear children:', childrensChildren.map(c => c.name));
     // Final counts
     const totalCategories = await Category.countDocuments();
     const level1Count = await Category.countDocuments({ level: 1 });

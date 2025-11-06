@@ -1,0 +1,64 @@
+:root {
+  /* Customer-specific colors */
+  --customer-primary: #4CAF50;
+  --customer-primary-light: #E8F5E9;
+  --customer-primary-dark: #2E7D32;
+  --customer-accent: #FFC107;
+  --customer-bg-dark: #121212;
+  --customer-bg-light: #f9f9f9;
+  
+  /* Category Colors */
+  --fashion-pink: #FF6B8B;
+  --cosmetics-purple: #9C27B0;
+  --home-blue: #2196F3;
+  --farm-orange: #FF9800;
+  
+  /* Status Colors */
+  --success-main: #28a745;
+  --warning-main: #ffc107;
+  --error-main: #dc3545;
+  --info-main: #17a2b8;
+}
+
+/* Customer page base styles */
+.customer-body {
+  font-family: 'Poppins', sans-serif;
+  background-color: var(--customer-bg-light);
+  color: #333;
+  line-height: 1.6;
+}
+
+/* Customer button styles */
+.customer-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+}
+
+.customer-btn-primary {
+  background: var(--customer-primary);
+  color: white;
+}
+
+.customer-btn-primary:hover {
+  background: var(--customer-primary-dark);
+  transform: translateY(-2px);
+}
+
+.customer-btn-gold {
+  background: var(--customer-accent);
+  color: #121212;
+}
+
+.customer-btn-gold:hover {
+  background: #FF8F00;
+  transform: translateY(-2px);
+}

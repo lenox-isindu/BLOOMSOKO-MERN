@@ -35,6 +35,7 @@ api.interceptors.response.use(
   }
 );
 
+// ADMIN APIs
 export const productAPI = {
   getAll: (params) => api.get('/admin/products', { params }),
   getById: (id) => api.get(`/admin/products/${id}`),
@@ -43,6 +44,13 @@ export const productAPI = {
   delete: (id) => api.delete(`/admin/products/${id}`),
 };
 
+// CUSTOMER APIs 
+export const customerProductAPI = {
+  getAll: (params) => api.get('/products', { params }),
+  getById: (id) => api.get(`/products/${id}`),
+  search: (query) => api.get(`/products?search=${query}`),
+  getByCategory: (category) => api.get(`/products?category=${category}`),
+};
 
 export const categoryAPI = {
   getAll: () => api.get('/categories'),
@@ -56,7 +64,7 @@ export const categoryAPI = {
   create: (data) => api.post('/categories', data),
 };
 
-//  upload API
+// Upload API
 export const uploadAPI = {
   uploadSingle: (formData) => api.post('/upload/single', formData, {
     headers: {
