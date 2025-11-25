@@ -5,57 +5,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const sampleCategories = [
-  {
-    name: "Agriculture",
-    description: "Fresh farm products, vegetables, and crops",
-    status: "active",
-    seo: {
-      slug: "agriculture"
-    }
-  },
-  {
-    name: "Fashion",
-    description: "Clothing, accessories, and fashion items",
-    status: "active",
-    seo: {
-      slug: "fashion"
-    }
-  },
-  {
-    name: "Beauty",
-    description: "Beauty products, cosmetics, and personal care",
-    status: "active",
-    seo: {
-      slug: "beauty"
-    }
-  },
-  {
-    name: "House & Garden",
-    description: "Home decor, gardening tools, and household items",
-    status: "active",
-    seo: {
-      slug: "house-garden"
-    }
-  },
-  {
-    name: "Livestock",
-    description: "Animals, poultry, and animal products",
-    status: "active",
-    seo: {
-      slug: "livestock"
-    }
-  },
-  {
-    name: "Grains & Cereals",
-    description: "Rice, maize, wheat, and other grains",
-    status: "active",
-    seo: {
-      slug: "grains-cereals"
-    }
-  }
-];
-
 const sampleProducts = [
   // Agriculture - Ready products
   {
@@ -91,7 +40,7 @@ const sampleProducts = [
     },
     productType: "growing",
     growingDetails: {
-      expectedReadyDate: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000), // 3 weeks from now
+      expectedReadyDate: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
       currentStage: "growing",
       progress: 60
     },
@@ -117,7 +66,7 @@ const sampleProducts = [
     },
     productType: "growing",
     growingDetails: {
-      expectedReadyDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
+      expectedReadyDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       currentStage: "almost-ready",
       progress: 85
     },
@@ -178,35 +127,44 @@ const sampleProducts = [
 const seedDatabase = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/bloomsoko');
-    console.log(' Connected to MongoDB');
+    console.log('✅ Connected to MongoDB');
 
     // Clear existing data
     await Product.deleteMany({});
-    await Category.deleteMany({});
-    console.log(' Cleared existing data');
+    console.log('🗑️ Cleared existing products');
 
-    // Create categories first
-    const createdCategories = await Category.insertMany(sampleCategories);
-    console.log(' Categories created successfully');
-
-    // Map category names to IDs for easy reference
+    // Pre-fetch all categories for efficient assignment
+    const categories = await Category.find({}).select('name level _id');
     const categoryMap = {};
-    createdCategories.forEach(cat => {
-      categoryMap[cat.name] = cat._id;
+    
+    categories.forEach(cat => {
+      categoryMap[`${cat.name}-${cat.level}`] = cat._id;
+    });
+
+    console.log('📊 Available categories for product assignment:');
+    categories.forEach(cat => {
+      console.log(`   - ${cat.name} (Level ${cat.level})`);
     });
 
     // Assign categories to products
     const productsWithCategories = sampleProducts.map(product => {
       let categoryId;
-      
-      if (product.tags.includes('vegetables') || product.name.includes('Tomato') || product.name.includes('Kale') || product.name.includes('Spinach')) {
-        categoryId = categoryMap['Agriculture'];
+
+      // Category mapping logic
+      if (product.name.includes('Tomato') || product.name.includes('Kale') || product.name.includes('Spinach')) {
+        categoryId = categoryMap['Vegetables-3'] || categoryMap['Farm Produce-2'] || categoryMap['Agricultural Produce-1'];
       } else if (product.tags.includes('fashion') || product.name.includes('Dress')) {
-        categoryId = categoryMap['Fashion'];
+        categoryId = categoryMap["Women's Wear-2"] || categoryMap['Fashion-1'];
       } else if (product.tags.includes('beauty') || product.name.includes('Shea')) {
-        categoryId = categoryMap['Beauty'];
+        categoryId = categoryMap['Skin Care-2'] || categoryMap['Beauty-1'];
       } else {
-        categoryId = categoryMap['Agriculture']; 
+        categoryId = categoryMap['Farm Produce-2'] || categoryMap['Agricultural Produce-1'];
+      }
+
+      // Final fallback - use first available category
+      if (!categoryId && categories.length > 0) {
+        categoryId = categories[0]._id;
+        console.log(`⚠️  Used fallback category for: ${product.name}`);
       }
 
       return {
@@ -217,22 +175,31 @@ const seedDatabase = async () => {
 
     // Add products with categories
     await Product.insertMany(productsWithCategories);
-    console.log(' Sample products added successfully');
+    console.log('✅ Sample products added successfully');
 
-    // Verify  data
+    // Verification
     const productCount = await Product.countDocuments();
     const categoryCount = await Category.countDocuments();
     const growingProducts = await Product.countDocuments({ productType: { $ne: 'ready' } });
+    const productsWithCategoriesCount = await Product.countDocuments({ category: { $ne: null } });
     
-    console.log(`Database seeded successfully!`);
-    console.log(`Total Products: ${productCount}`);
-    console.log(`Growing/Pre-order Products: ${growingProducts}`);
-    console.log(` Categories: ${categoryCount}`);
-    console.log(` Ready for KSH marketplace with pre-orders!`);
+    console.log(`\n📊 Database seeded successfully!`);
+    console.log(`   Total Products: ${productCount}`);
+    console.log(`   Products with Categories: ${productsWithCategoriesCount}`);
+    console.log(`   Growing/Pre-order Products: ${growingProducts}`);
+    console.log(`   Total Categories: ${categoryCount}`);
+    console.log(`   Ready for KSH marketplace with pre-orders!`);
+
+    // Show product-category assignments
+    console.log('\n🔗 Product-Category Assignments:');
+    const products = await Product.find({}).populate('category', 'name level');
+    products.forEach(product => {
+      console.log(`   ${product.name} → ${product.category?.name || 'No category'}`);
+    });
 
     process.exit(0);
   } catch (error) {
-    console.error(' Error seeding database:', error);
+    console.error('❌ Error seeding database:', error);
     process.exit(1);
   }
 };

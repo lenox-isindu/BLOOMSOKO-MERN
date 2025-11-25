@@ -1,12 +1,100 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { orderAPI, productAPI } from '../../services/api.js';
+import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
-  const stats = [
-    { label: 'Total Products', value: '24', color: 'var(--primary-color)', icon: '🛍️' },
-    { label: 'Total Orders', value: '156', color: 'var(--accent-gold)', icon: '📦' },
-    { label: 'Total Revenue', value: '₦1.2M', color: 'var(--success)', icon: '💰' },
-    { label: 'Customers', value: '89', color: 'var(--info)', icon: '👥' },
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
+    pendingOrders: 0
+  });
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real dashboard data
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch orders statistics
+      const ordersResponse = await fetch('http://localhost:5000/api/orders/admin/stats');
+      const ordersData = await ordersResponse.json();
+      
+      // Fetch products count
+      const productsResponse = await fetch('http://localhost:5000/api/admin/products');
+      const productsData = await productsResponse.json();
+      
+      // Fetch recent orders
+      const recentOrdersResponse = await fetch('http://localhost:5000/api/orders/admin?limit=5');
+      const recentOrdersData = await recentOrdersResponse.json();
+      
+      console.log('Dashboard data:', { ordersData, productsData, recentOrdersData });
+      
+      // Set stats
+      setStats({
+        totalProducts: productsData.products?.length || 0,
+        totalOrders: ordersData.totalOrders || 0,
+        totalRevenue: ordersData.totalRevenue || 0,
+        pendingOrders: ordersData.pendingOrders || 0
+      });
+      
+      // Set recent orders
+      if (recentOrdersData.orders) {
+        setRecentOrders(recentOrdersData.orders.slice(0, 5));
+      } else if (Array.isArray(recentOrdersData)) {
+        setRecentOrders(recentOrdersData.slice(0, 5));
+      } else if (recentOrdersData.data) {
+        setRecentOrders(recentOrdersData.data.slice(0, 5));
+      }
+      
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const statsData = [
+    { 
+      label: 'Total Products', 
+      value: stats.totalProducts, 
+      color: 'var(--primary-color)', 
+      icon: '🛍️' 
+    },
+    { 
+      label: 'Total Orders', 
+      value: stats.totalOrders, 
+      color: 'var(--accent-gold)', 
+      icon: '📦' 
+    },
+    { 
+      label: 'Total Revenue', 
+      value: `KSh ${stats.totalRevenue?.toLocaleString() || '0'}`, 
+      color: 'var(--success)', 
+      icon: '💰' 
+    },
+    { 
+      label: 'Pending Orders', 
+      value: stats.pendingOrders, 
+      color: 'var(--info)', 
+      icon: '⏳' 
+    },
   ];
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   return (
     <div>
@@ -23,14 +111,14 @@ const AdminDashboard = () => {
         </p>
       </div>
 
-      {/* Stats Grid with Gold Accent */}
+      {/* Real Stats Grid */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
         gap: 'var(--space-5)',
         marginBottom: 'var(--space-6)'
       }}>
-        {stats.map((stat, index) => (
+        {statsData.map((stat, index) => (
           <div key={index} className={`stat-card ${index === 1 ? 'gold' : ''}`}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
@@ -56,7 +144,7 @@ const AdminDashboard = () => {
         ))}
       </div>
 
-      {/* Recent Activity with Gold Header */}
+      {/* Recent Activity with Real Data */}
       <div className="card card-gold">
         <div className="card-header">
           <h3 style={{ 
@@ -65,21 +153,66 @@ const AdminDashboard = () => {
             alignItems: 'center',
             gap: 'var(--space-2)'
           }}>
-            <span style={{ color: 'var(--accent-gold)' }}>⭐</span>
-            Recent Activity
+            <span style={{ color: 'var(--accent-gold)' }}>📦</span>
+            Recent Orders
           </h3>
         </div>
         <div className="card-body">
-          <p style={{ 
-            color: 'var(--text-secondary)', 
-            textAlign: 'center', 
-            padding: 'var(--space-8)',
-            fontStyle: 'italic'
-          }}>
-            Recent orders, products, and customer activity will appear here.
-            <br />
-            <span style={{ color: 'var(--accent-gold)' }}>Coming soon with more golden accents!</span>
-          </p>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 'var(--space-4)', color: 'var(--text-light)' }}>
+              Loading recent orders...
+            </div>
+          ) : recentOrders.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 'var(--space-4)', color: 'var(--text-light)' }}>
+              No recent orders found.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--border-light)', textAlign: 'left' }}>
+                    <th style={{ padding: 'var(--space-3)' }}>Order</th>
+                    <th style={{ padding: 'var(--space-3)' }}>Customer</th>
+                    <th style={{ padding: 'var(--space-3)' }}>Amount</th>
+                    <th style={{ padding: 'var(--space-3)' }}>Status</th>
+                    <th style={{ padding: 'var(--space-3)' }}>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentOrders.map((order) => (
+                    <tr key={order._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <td style={{ padding: 'var(--space-3)' }}>
+                        <div style={{ fontWeight: '600', color: 'var(--text-dark)' }}>
+                          {order.orderNumber}
+                        </div>
+                      </td>
+                      <td style={{ padding: 'var(--space-3)' }}>
+                        {order.recipient?.firstName} {order.recipient?.lastName}
+                      </td>
+                      <td style={{ padding: 'var(--space-3)' }}>
+                        KSh {order.totalAmount?.toLocaleString()}
+                      </td>
+                      <td style={{ padding: 'var(--space-3)' }}>
+                        <span style={{ 
+                          backgroundColor: order.status === 'pending' ? 'var(--warning)' : 'var(--success)',
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: 'var(--font-size-xs)',
+                          fontWeight: '600'
+                        }}>
+                          {order.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: 'var(--space-3)' }}>
+                        {formatDate(order.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>

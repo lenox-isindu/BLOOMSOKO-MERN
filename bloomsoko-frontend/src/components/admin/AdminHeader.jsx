@@ -1,6 +1,19 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const AdminHeader = () => {
+  const navigate = useNavigate();
+  
+  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    toast.success('Logged out successfully');
+    navigate('/admin/login');
+  };
+
   return (
     <header className="admin-header">
       <div style={{ flex: 1 }}>
@@ -37,10 +50,18 @@ const AdminHeader = () => {
             color: 'white',
             fontWeight: '600'
           }}>
-            A
+            {adminUser.name?.charAt(0) || 'A'}
           </div>
-          <span style={{ fontWeight: '500' }}>Admin User</span>
+          <span style={{ fontWeight: '500' }}>{adminUser.name || 'Admin'}</span>
         </div>
+        
+        <button 
+          onClick={handleLogout}
+          className="btn btn-secondary"
+          style={{ padding: 'var(--space-2) var(--space-3)' }}
+        >
+          Logout
+        </button>
       </div>
     </header>
   );

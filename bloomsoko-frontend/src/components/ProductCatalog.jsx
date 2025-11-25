@@ -3,6 +3,7 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import styles from './ProductCatalog.module.css';
 
+
 const ProductCatalog = () => {
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -111,11 +112,17 @@ const ProductCatalog = () => {
     };
 
     // Handle category selection
-    const handleCategoryClick = (categoryName) => {
-        setCurrentCategory(categoryName);
-        navigate(`/products?category=${encodeURIComponent(categoryName)}`, { replace: true });
-        setIsSidebarOpen(false);
-    };
+  const handleCategoryClick = (categoryName) => {
+    if (categoryName === 'all') {
+        setCurrentCategory('all');
+        navigate('/products', { replace: true });
+    } else {
+        // Convert category name to slug for the URL
+        const categorySlug = categoryName.toLowerCase().replace(/\s+/g, '-');
+        navigate(`/categories/${categorySlug}`, { replace: true });
+    }
+    setIsSidebarOpen(false);
+};
 
     // Handle search
     const handleSearch = (e) => {

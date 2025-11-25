@@ -9,15 +9,34 @@ const ProductsManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // Fetch products from backend
+  // SIMPLE FETCH - No API service, direct fetch
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await productAPI.getAll();
-      setProducts(response.data.products || []);
+      console.log('🔄 Fetching products...');
+      
+      const response = await fetch('http://localhost:5000/api/admin/products');
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('✅ API Response:', data);
+      
+      // Your backend returns { products: [], totalPages, currentPage, total }
+      if (data.products) {
+        setProducts(data.products);
+        console.log(`✅ Loaded ${data.products.length} products`);
+      } else {
+        console.warn('❌ No products found in response');
+        setProducts([]);
+      }
+      
     } catch (error) {
-      console.error('Error fetching products:', error);
-      toast.error('Failed to load products');
+      console.error('❌ Fetch error:', error);
+      toast.error('Failed to load products. Check console.');
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -33,7 +52,7 @@ const ProductsManagement = () => {
       try {
         await productAPI.delete(productId);
         toast.success('Product deleted successfully');
-        fetchProducts(); // Refresh the list
+        fetchProducts();
       } catch (error) {
         console.error('Error deleting product:', error);
         toast.error('Failed to delete product');
@@ -83,6 +102,34 @@ const ProductsManagement = () => {
         </button>
       </div>
 
+      {/* Debug Info */}
+      <div style={{ 
+        padding: 'var(--space-3)',
+        backgroundColor: 'var(--bg-light)',
+        borderRadius: 'var(--radius-md)',
+        marginBottom: 'var(--space-4)',
+        border: '1px solid var(--border-light)'
+      }}>
+        <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-light)' }}>
+           {products.length} products loaded  
+          <button 
+            onClick={fetchProducts}
+            style={{ 
+              marginLeft: 'var(--space-2)',
+              background: 'none',
+              border: '1px solid var(--accent-gold)',
+              color: 'var(--accent-gold)',
+              padding: '2px 8px',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              fontSize: 'var(--font-size-xs)'
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
       {/* Products Table */}
       <div className="card">
         <div className="card-header">
@@ -113,12 +160,22 @@ const ProductsManagement = () => {
               color: 'var(--text-light)'
             }}>
               <p>No products found.</p>
+              <p style={{ fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-4)' }}>
+                This could mean: no products in database, API connection issue, or server error.
+              </p>
               <button 
                 className="btn btn-gold"
                 onClick={handleAddProduct}
                 style={{ marginTop: 'var(--space-4)' }}
               >
                 Add Your First Product
+              </button>
+              <button 
+                className="btn btn-secondary"
+                onClick={fetchProducts}
+                style={{ marginTop: 'var(--space-4)', marginLeft: 'var(--space-2)' }}
+              >
+                Retry Loading
               </button>
             </div>
           ) : (
@@ -141,19 +198,7 @@ const ProductsManagement = () => {
                 </thead>
                 <tbody>
                   {products.map((product) => (
-                    <tr 
-                      key={product._id}
-                      style={{ 
-                        borderBottom: '1px solid var(--border-light)',
-                        transition: 'background-color 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.parentNode.style.backgroundColor = 'var(--bg-light)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.parentNode.style.backgroundColor = 'transparent';
-                      }}
-                    >
+                    <tr key={product._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                       <td style={{ padding: 'var(--space-4)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                           {product.featuredImage?.url ? (
@@ -182,17 +227,10 @@ const ProductsManagement = () => {
                             </div>
                           )}
                           <div>
-                            <div style={{ 
-                              fontWeight: '600', 
-                              color: 'var(--text-dark)',
-                              marginBottom: 'var(--space-1)'
-                            }}>
+                            <div style={{ fontWeight: '600', color: 'var(--text-dark)' }}>
                               {product.name}
                             </div>
-                            <div style={{ 
-                              fontSize: 'var(--font-size-sm)',
-                              color: 'var(--text-light)'
-                            }}>
+                            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-light)' }}>
                               {product.category?.name || 'Uncategorized'}
                             </div>
                           </div>
@@ -200,48 +238,23 @@ const ProductsManagement = () => {
                       </td>
                       <td style={{ padding: 'var(--space-4)' }}>
                         <div style={{ fontWeight: '600', color: 'var(--text-dark)' }}>
-                          ₦{product.price?.toLocaleString()}
+                          KSh {product.price?.toLocaleString()}
                         </div>
-                        {product.comparePrice > product.price && (
-                          <div style={{ 
-                            fontSize: 'var(--font-size-sm)',
-                            color: 'var(--text-light)',
-                            textDecoration: 'line-through'
-                          }}>
-                            ₦{product.comparePrice.toLocaleString()}
-                          </div>
-                        )}
                       </td>
                       <td style={{ padding: 'var(--space-4)' }}>
-                        <div style={{ 
-                          fontWeight: '600',
-                          color: product.inventory.stock === 0 ? 'var(--error)' : 
-                                 product.inventory.stock <= 10 ? 'var(--warning)' : 'var(--success)'
+                        <div style={{ fontWeight: '600' }}>
+                          {product.inventory?.stock || 0}
+                        </div>
+                      </td>
+                      <td style={{ padding: 'var(--space-4)' }}>
+                        <span style={{ 
+                          backgroundColor: product.status === 'active' ? 'var(--success)' : 'var(--error)',
+                          color: 'white',
+                          padding: 'var(--space-1) var(--space-3)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: 'var(--font-size-xs)',
+                          fontWeight: '600'
                         }}>
-                          {product.inventory.stock}
-                        </div>
-                        {product.inventory.stock <= 10 && product.inventory.stock > 0 && (
-                          <div style={{ 
-                            fontSize: 'var(--font-size-xs)',
-                            color: 'var(--warning)'
-                          }}>
-                            Low stock
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: 'var(--space-4)' }}>
-                        <span 
-                          className="badge-gold"
-                          style={{ 
-                            backgroundColor: product.status === 'active' ? 'var(--success)' : 
-                                           product.status === 'draft' ? 'var(--warning)' : 'var(--error)',
-                            color: 'white',
-                            padding: 'var(--space-1) var(--space-3)',
-                            borderRadius: 'var(--radius-sm)',
-                            fontSize: 'var(--font-size-xs)',
-                            fontWeight: '600'
-                          }}
-                        >
                           {product.status}
                         </span>
                       </td>
@@ -272,7 +285,7 @@ const ProductsManagement = () => {
         </div>
       </div>
 
-      {/* Product Form Modal - We'll implement this next */}
+      {/* Product Form Modal */}
       {showForm && (
         <ProductForm 
           product={editingProduct}
@@ -283,15 +296,12 @@ const ProductsManagement = () => {
           onSave={() => {
             setShowForm(false);
             setEditingProduct(null);
-            fetchProducts(); // Refresh the list
+            fetchProducts();
           }}
         />
       )}
     </div>
   );
 };
-
-
-
 
 export default ProductsManagement;

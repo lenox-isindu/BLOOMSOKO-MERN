@@ -3,9 +3,15 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 
 // Admin Components
+import AdminLogin from './pages/admin/AdminLogin.jsx';
 import AdminLayout from './components/admin/AdminLayout.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 import ProductsManagement from './pages/admin/ProductsManagement.jsx';
+import CategoriesManagement from './pages/admin/CategoriesManagement.jsx'; // NEW IMPORT
+import OrdersManagement from './pages/admin/OrdersManagement.jsx';
+import UsersManagement from './pages/admin/UsersManagement.jsx';
+
+
 
 // Customer Components
 import Home from './pages/Home.jsx';
@@ -16,7 +22,9 @@ import CategoryPage from './pages/CategoryPage.jsx';
 import Checkout from './pages/Checkout.jsx';
 import { CartProvider } from './context/CartContext';
 import CustomerProductDetail from './components/CustomerProductDetail.jsx';
-
+import OrderSuccess from './pages/OrderSuccess.jsx';
+import PaymentCallback from './components/PaymentCallback.jsx';
+import Orders from './pages/Orders.jsx';
 // CSS imports 
 import './styles/globals.css';
 import './styles/customer.css'; 
@@ -50,6 +58,10 @@ const ComingSoon = ({ title }) => (
   </div>
 );
 
+const ProtectedRoute = ({ children }) => {
+  const isAuthenticated = localStorage.getItem('adminToken');
+  return isAuthenticated ? children : <Navigate to="/admin/login" replace />;
+};
 function App() {
   return (
     <CartProvider>
@@ -81,6 +93,29 @@ function App() {
                 <ProductCatalog />
               </div>
             } />
+
+            {/* Checkout and Order Routes */}
+            <Route path="/checkout" element={
+              <div className="customer-body">
+                <Checkout />
+              </div>
+            } />
+            <Route path="/payment-callback" element={
+              <div className="customer-body">
+                <PaymentCallback />
+              </div>
+            } />
+            <Route path="/order-success" element={
+              <div className="customer-body">
+                <OrderSuccess />
+              </div>
+            } />
+            <Route path="/orders" element={
+              <div className="customer-body">
+                <Orders />
+              </div>
+            } />
+            
             <Route path="/admin/products/:id" element={
               <div className="customer-body">
                 <ProductDetail />
@@ -91,23 +126,24 @@ function App() {
                 <ShoppingCart />
               </div>
             } />
+
             <Route path="/product/:id" element={
-  <div className="customer-body">
-    <CustomerProductDetail />
-  </div>
-} />
-             {/* Category Pages */}
-      <Route path="/categories/:categorySlug" element={<CategoryPage />} />
-      
-      {/* Checkout */}
-      <Route path="/checkout" element={<Checkout />} />
-            
-            {/*  - Use customer styles */}
-            <Route path="/categories" element={
               <div className="customer-body">
-                <ComingSoon title="Categories" />
+                <CustomerProductDetail />
               </div>
             } />
+            
+            {/* Category Pages */}
+            <Route path="/categories/:categorySlug" element={
+              <div className="customer-body">
+                <CategoryPage />
+              </div>
+            } />
+            
+            {/* Checkout */}
+            <Route path="/checkout" element={<Checkout />} />
+            
+            {/* Coming Soon Pages */}
             <Route path="/about" element={
               <div className="customer-body">
                 <ComingSoon title="About Us" />
@@ -120,17 +156,20 @@ function App() {
             } />
 
             {/* Admin Routes - Use admin styles */}
-            <Route path="/admin/*" element={
-              <div className="admin-app">
-                <AdminLayout />
-              </div>
-            }>
-              <Route index element={<AdminDashboard />} />
-              <Route path="products" element={<ProductsManagement />} />
-              <Route path="categories" element={<ComingSoon title="Categories Management" />} />
-              <Route path="orders" element={<ComingSoon title="Orders Management" />} />
-              <Route path="users" element={<ComingSoon title="Users Management" />} />
-            </Route>
+           <Route path="/admin/login" element={<AdminLogin />} />
+<Route path="/admin/*" element={
+  <ProtectedRoute>
+    <div className="admin-app">
+      <AdminLayout />
+    </div>
+  </ProtectedRoute>
+}>
+  <Route index element={<AdminDashboard />} />
+  <Route path="products" element={<ProductsManagement />} />
+  <Route path="categories" element={<CategoriesManagement />} />
+  <Route path="orders" element={<OrdersManagement />} />
+  <Route path="users" element={<UsersManagement />} />
+</Route>
 
             {/* Redirect to home for unknown routes */}
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -26,11 +26,8 @@ const ShoppingCart = () => {
   };
 
   const handlePlaceOrder = () => {
-   
-    alert('Order placed successfully! You will receive a confirmation email shortly.');
-    clearCart();
-    navigate('/');
-  };
+  navigate('/checkout');
+};
 
   const cartItems = cart?.items || cart || [];
   const isEmpty = !cartItems || cartItems.length === 0;

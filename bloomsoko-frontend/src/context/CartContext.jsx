@@ -56,7 +56,7 @@ export const CartProvider = ({ children }) => {
     const [state, dispatch] = useReducer(cartReducer, initialState);
     const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
-    //  demo user ID
+    // Generate a persistent demo user ID
     const getUserId = () => {
         let userId = localStorage.getItem('bloomsoko-user-id');
         if (!userId) {
@@ -66,7 +66,7 @@ export const CartProvider = ({ children }) => {
         return userId;
     };
 
-    // Load cart 
+    // Load cart from backend on mount
     useEffect(() => {
         fetchCart();
     }, []);
@@ -87,7 +87,6 @@ export const CartProvider = ({ children }) => {
                 console.log('Cart data received:', cartData);
                 dispatch({ type: 'SET_CART', payload: cartData });
             } else {
-                // If no cart exists, create empty one
                 console.log('No cart found, creating empty cart');
                 dispatch({ type: 'SET_CART', payload: { items: [] } });
             }
@@ -118,7 +117,13 @@ export const CartProvider = ({ children }) => {
             if (response.ok) {
                 const result = await response.json();
                 console.log('Add to cart result:', result);
+                
+                // Immediately update local state AND refresh from server for consistency
                 dispatch({ type: 'ADD_TO_CART', payload: result });
+                
+                // Force refresh to ensure UI updates immediately
+                await fetchCart();
+                
                 return result;
             } else {
                 throw new Error('Failed to add to cart');
@@ -145,6 +150,9 @@ export const CartProvider = ({ children }) => {
                 const result = await response.json();
                 console.log('Remove from cart result:', result);
                 dispatch({ type: 'REMOVE_FROM_CART', payload: result });
+                
+                // Force refresh to ensure UI updates immediately
+                await fetchCart();
             }
         } catch (error) {
             console.error('Error removing from cart:', error);
@@ -169,6 +177,9 @@ export const CartProvider = ({ children }) => {
                 const result = await response.json();
                 console.log('Update quantity result:', result);
                 dispatch({ type: 'UPDATE_QUANTITY', payload: result });
+                
+                // Force refresh to ensure UI updates immediately
+                await fetchCart();
             }
         } catch (error) {
             console.error('Error updating cart:', error);
@@ -176,26 +187,34 @@ export const CartProvider = ({ children }) => {
         }
     };
 
-    const clearCart = async () => {
-        try {
-            const userId = getUserId();
-            
-            const response = await fetch(`${API_URL}/cart/clear`, {
-                method: 'DELETE',
-                headers: {
-                    'userid': userId
-                }
-            });
+    // In CartContext.jsx - Update clearCart to be more reliable
+const clearCart = async () => {
+  try {
+    const userId = getUserId();
+    
+    const response = await fetch(`${API_URL}/cart/clear`, {
+      method: 'DELETE',
+      headers: {
+        'userid': userId
+      }
+    });
 
-            if (response.ok) {
-                dispatch({ type: 'CLEAR_CART' });
-            }
-        } catch (error) {
-            console.error('Error clearing cart:', error);
-            dispatch({ type: 'SET_ERROR', payload: error.message });
-        }
-    };
-
+    if (response.ok) {
+      // Update local state immediately
+      dispatch({ type: 'CLEAR_CART' });
+      console.log('🛒 Cart cleared locally and on server');
+      return true;
+    } else {
+      throw new Error('Failed to clear cart on server');
+    }
+  } catch (error) {
+    console.error('Error clearing cart:', error);
+    // Still clear locally even if server fails
+    dispatch({ type: 'CLEAR_CART' });
+    dispatch({ type: 'SET_ERROR', payload: error.message });
+    return false;
+  }
+};
     const migrateCart = async (fromUserId, toUserId) => {
         try {
             const response = await fetch(`${API_URL}/cart/migrate`, {
@@ -217,7 +236,12 @@ export const CartProvider = ({ children }) => {
         }
     };
 
-    //  getCartCount 
+    // Force immediate cart refresh
+    const forceRefreshCart = async () => {
+        await fetchCart();
+    };
+
+    // SAFE getCartCount - always handles undefined/empty arrays
     const getCartCount = () => {
         if (!state.items || !Array.isArray(state.items)) {
             console.warn('Cart items is not an array:', state.items);
@@ -226,7 +250,7 @@ export const CartProvider = ({ children }) => {
         return state.items.reduce((total, item) => total + (item.quantity || 0), 0);
     };
 
-    
+    // SAFE getCartTotal - always handles undefined/empty arrays
     const getCartTotal = () => {
         if (!state.items || !Array.isArray(state.items)) {
             console.warn('Cart items is not an array:', state.items);
@@ -241,7 +265,7 @@ export const CartProvider = ({ children }) => {
 
     return (
         <CartContext.Provider value={{
-            cart: state.items || [], 
+            cart: state.items || [], // Always return array
             loading: state.loading,
             error: state.error,
             addToCart,
@@ -251,7 +275,8 @@ export const CartProvider = ({ children }) => {
             migrateCart,
             getCartCount,
             getCartTotal,
-            refreshCart: fetchCart
+            refreshCart: fetchCart,
+            forceRefreshCart // New function for immediate refresh
         }}>
             {children}
         </CartContext.Provider>

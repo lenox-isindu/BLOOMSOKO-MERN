@@ -51,17 +51,14 @@ const ProductForm = ({ product, onClose, onSave }) => {
   const [tagInput, setTagInput] = useState('');
   const [categoryPath, setCategoryPath] = useState('');
 
-  
- 
-    
-     // Fetch main categories
+  // Fetch main categories - FIXED
   useEffect(() => {
     const fetchMainCategories = async () => {
       try {
         console.log('Fetching main categories...');
         const response = await categoryAPI.getMain();
-        console.log('Main categories loaded:', response.data);
-        setMainCategories(response.data);
+        console.log('Main categories loaded:', response);
+        setMainCategories(response || []); // FIXED: Use response directly, not response.data
       } catch (error) {
         console.error('Error fetching main categories:', error);
         toast.error('Failed to load categories');
@@ -75,7 +72,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
   const getCategoryPath = async (categoryId) => {
     try {
       const response = await categoryAPI.getById(categoryId);
-      const category = response.data;
+      const category = response; // FIXED: Use response directly
       
       let path = category.name;
       let currentCategory = category;
@@ -83,7 +80,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
       // Build path by traversing up the hierarchy
       while (currentCategory.parent) {
         const parentResponse = await categoryAPI.getById(currentCategory.parent);
-        currentCategory = parentResponse.data;
+        currentCategory = parentResponse; // FIXED: Use response directly
         path = `${currentCategory.name} > ${path}`;
       }
       
@@ -105,12 +102,12 @@ const ProductForm = ({ product, onClose, onSave }) => {
     }
   }, [formData.category]);
 
-  // Populate form if editing
+  // Populate form if editing - FIXED
   useEffect(() => {
     if (product) {
       const populateCategoryHierarchy = async () => {
         try {
-          // First set the basic form data
+          // First set the basic form data - FIXED: Ensure arrays are safe
           setFormData(prev => ({
             ...prev,
             name: product.name || '',
@@ -147,15 +144,15 @@ const ProductForm = ({ product, onClose, onSave }) => {
               isQuickDelivery: product.flags?.isQuickDelivery || false,
               isSeasonal: product.flags?.isSeasonal || false,
             },
-            images: product.images || [],
-            featuredImage: product.featuredImage || { url: '', alt: '' }
+            images: product.images || [], // FIXED: Ensure array
+            featuredImage: product.featuredImage || { url: '', alt: '' } // FIXED: Ensure object
           }));
 
           // If editing and category exists, populate the hierarchy
           if (product.category) {
             const categoryId = product.category._id || product.category;
             const categoryResponse = await categoryAPI.getById(categoryId);
-            const currentCategory = categoryResponse.data;
+            const currentCategory = categoryResponse; // FIXED: Use response directly
             
             let mainCatId = '';
             let subCatId = '';
@@ -169,7 +166,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
               hierarchy.unshift(tempCategory);
               if (tempCategory.parent) {
                 const parentResponse = await categoryAPI.getById(tempCategory.parent);
-                tempCategory = parentResponse.data;
+                tempCategory = parentResponse; // FIXED: Use response directly
               } else {
                 tempCategory = null;
               }
@@ -197,13 +194,13 @@ const ProductForm = ({ product, onClose, onSave }) => {
             // Load subcategories if main category exists
             if (mainCatId) {
               const subResponse = await categoryAPI.getSubcategories(mainCatId);
-              setSubCategories(subResponse.data);
+              setSubCategories(subResponse || []); // FIXED: Use response directly
             }
 
             // Load child categories if sub category exists
             if (subCatId) {
               const childResponse = await categoryAPI.getSubcategories(subCatId);
-              setChildCategories(childResponse.data);
+              setChildCategories(childResponse || []); // FIXED: Use response directly
             }
           }
         } catch (error) {
@@ -215,7 +212,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
     }
   }, [product]);
 
-  // Image upload handlers
+  // Image upload handlers - FIXED
   const handleImageUpload = async (file, isFeatured = false) => {
     try {
       setUploading(true);
@@ -224,7 +221,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
 
       const response = await uploadAPI.uploadSingle(uploadFormData);
       const imageData = {
-        url: response.data.url,
+        url: response.data?.url || response.url, // FIXED: Safe access
         alt: file.name || 'Product image'
       };
 
@@ -237,7 +234,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
       } else {
         setFormData(prev => ({
           ...prev,
-          images: [...prev.images, imageData]
+          images: [...(prev.images || []), imageData] // FIXED: Safe array spread
         }));
         toast.success('Image uploaded successfully!');
       }
@@ -259,14 +256,14 @@ const ProductForm = ({ product, onClose, onSave }) => {
 
       const response = await uploadAPI.uploadMultiple(uploadFormData);
       
-      const newImages = response.data.images.map(img => ({
+      const newImages = (response.data?.images || response.images || []).map(img => ({ // FIXED: Safe access
         url: img.url,
         alt: 'Product image'
       }));
 
       setFormData(prev => ({
         ...prev,
-        images: [...prev.images, ...newImages]
+        images: [...(prev.images || []), ...newImages] // FIXED: Safe array spread
       }));
 
       toast.success(`${files.length} images uploaded successfully!`);
@@ -287,7 +284,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
     } else {
       setFormData(prev => ({
         ...prev,
-        images: prev.images.filter((_, i) => i !== index)
+        images: (prev.images || []).filter((_, i) => i !== index) // FIXED: Safe array filter
       }));
     }
   };
@@ -296,7 +293,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
     setFormData(prev => ({
       ...prev,
       featuredImage: image,
-      images: prev.images.filter(img => img.url !== image.url)
+      images: (prev.images || []).filter(img => img.url !== image.url) // FIXED: Safe array filter
     }));
   };
 
@@ -525,218 +522,218 @@ const ProductForm = ({ product, onClose, onSave }) => {
                   </div>
                 </div>
               </div>
-{/* Cascading Category Selection */}
-<div>
-  <h4 style={{ 
-    marginBottom: 'var(--space-4)',
-    color: 'var(--text-dark)',
-    borderBottom: '2px solid var(--accent-gold)',
-    paddingBottom: 'var(--space-2)'
-  }}>
-    Category Selection
-  </h4>
-  <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-    
-    {/* Main Category */}
-    <div className="form-group">
-      <label className="form-label">Main Category *</label>
-      <select
-        name="mainCategory"
-        value={formData.mainCategory || ''}
-        onChange={async (e) => {
-          const mainCatId = e.target.value;
-          console.log('Selected main category:', mainCatId);
-          
-          setFormData(prev => ({
-            ...prev,
-            mainCategory: mainCatId,
-            subCategory: '',
-            childCategory: '',
-            category: '' // Reset final category
-          }));
 
-          if (mainCatId) {
-            try {
-              console.log('Fetching subcategories for main category:', mainCatId);
-              const response = await categoryAPI.getSubcategories(mainCatId);
-              console.log('Subcategories loaded:', response.data);
-              setSubCategories(response.data);
-              setChildCategories([]);
-              
-              // If no subcategories, set main category as final category
-              if (response.data.length === 0) {
-                console.log('No subcategories, setting main as final category');
-                setFormData(prev => ({
-                  ...prev,
-                  category: mainCatId
-                }));
-              }
-            } catch (error) {
-              console.error('Error fetching subcategories:', error);
-              console.error('Error details:', error.response?.data);
-              toast.error('Failed to load subcategories');
-              setSubCategories([]);
-              setChildCategories([]);
-            }
-          } else {
-            setSubCategories([]);
-            setChildCategories([]);
-          }
-        }}
-        className="form-select"
-        required
-        disabled={mainCategories.length === 0}
-      >
-        <option value="">
-          {mainCategories.length === 0 ? 'Loading categories...' : 'Select Main Category'}
-        </option>
-        {mainCategories.map(category => (
-          <option key={category._id} value={category._id}>
-            {category.name}
-          </option>
-        ))}
-      </select>
-      {mainCategories.length === 0 && (
-        <div style={{ 
-          fontSize: 'var(--font-size-sm)', 
-          color: 'var(--text-light)',
-          marginTop: 'var(--space-2)'
-        }}>
-          Loading categories from server...
-        </div>
-      )}
-    </div>
+              {/* Cascading Category Selection - FIXED */}
+              <div>
+                <h4 style={{ 
+                  marginBottom: 'var(--space-4)',
+                  color: 'var(--text-dark)',
+                  borderBottom: '2px solid var(--accent-gold)',
+                  paddingBottom: 'var(--space-2)'
+                }}>
+                  Category Selection
+                </h4>
+                <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+                  
+                  {/* Main Category */}
+                  <div className="form-group">
+                    <label className="form-label">Main Category *</label>
+                    <select
+                      name="mainCategory"
+                      value={formData.mainCategory || ''}
+                      onChange={async (e) => {
+                        const mainCatId = e.target.value;
+                        console.log('Selected main category:', mainCatId);
+                        
+                        setFormData(prev => ({
+                          ...prev,
+                          mainCategory: mainCatId,
+                          subCategory: '',
+                          childCategory: '',
+                          category: '' // Reset final category
+                        }));
 
-    {/* Sub Category - Show when main category is selected */}
-    {formData.mainCategory && (
-      <div className="form-group">
-        <label className="form-label">
-          Sub Category {subCategories.length === 0 && '(No subcategories available)'}
-        </label>
-        <select
-          name="subCategory"
-          value={formData.subCategory || ''}
-          onChange={async (e) => {
-            const subCatId = e.target.value;
-            console.log('Selected subcategory:', subCatId);
-            
-            setFormData(prev => ({
-              ...prev,
-              subCategory: subCatId,
-              childCategory: '',
-              category: subCatId // Set as final category by default
-            }));
+                        if (mainCatId) {
+                          try {
+                            console.log('Fetching subcategories for main category:', mainCatId);
+                            const response = await categoryAPI.getSubcategories(mainCatId);
+                            console.log('Subcategories loaded:', response);
+                            setSubCategories(response || []); // FIXED: Use response directly
+                            setChildCategories([]);
+                            
+                            // If no subcategories, set main category as final category
+                            if ((response || []).length === 0) { // FIXED: Safe length check
+                              console.log('No subcategories, setting main as final category');
+                              setFormData(prev => ({
+                                ...prev,
+                                category: mainCatId
+                              }));
+                            }
+                          } catch (error) {
+                            console.error('Error fetching subcategories:', error);
+                            toast.error('Failed to load subcategories');
+                            setSubCategories([]);
+                            setChildCategories([]);
+                          }
+                        } else {
+                          setSubCategories([]);
+                          setChildCategories([]);
+                        }
+                      }}
+                      className="form-select"
+                      required
+                      disabled={mainCategories.length === 0}
+                    >
+                      <option value="">
+                        {mainCategories.length === 0 ? 'Loading categories...' : 'Select Main Category'}
+                      </option>
+                      {mainCategories.map(category => (
+                        <option key={category._id} value={category._id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                    {mainCategories.length === 0 && (
+                      <div style={{ 
+                        fontSize: 'var(--font-size-sm)', 
+                        color: 'var(--text-light)',
+                        marginTop: 'var(--space-2)'
+                      }}>
+                        Loading categories from server...
+                      </div>
+                    )}
+                  </div>
 
-            if (subCatId) {
-              try {
-                console.log('Fetching child categories for:', subCatId);
-                const response = await categoryAPI.getSubcategories(subCatId);
-                console.log('Child categories loaded:', response.data);
-                const children = response.data;
-                setChildCategories(children);
-                
-                // If children exist, reset final category (will be set when child is selected)
-                if (children.length > 0) {
-                  setFormData(prev => ({
-                    ...prev,
-                    category: ''
-                  }));
-                }
-                // If no children, subcategory is the final category (already set above)
-              } catch (error) {
-                console.error('Error fetching child categories:', error);
-                console.error('Error details:', error.response?.data);
-                toast.error('Failed to load child categories');
-                setChildCategories([]);
-                // Keep subcategory as final category even if error
-              }
-            } else {
-              setChildCategories([]);
-              setFormData(prev => ({
-                ...prev,
-                category: ''
-              }));
-            }
-          }}
-          className="form-select"
-          disabled={subCategories.length === 0}
-        >
-          <option value="">
-            {subCategories.length === 0 ? 'No subcategories available' : 'Select Sub Category'}
-          </option>
-          {subCategories.map(category => (
-            <option key={category._id} value={category._id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-        {subCategories.length === 0 && (
-          <div style={{ 
-            fontSize: 'var(--font-size-sm)', 
-            color: 'var(--text-light)',
-            marginTop: 'var(--space-2)'
-          }}>
-            This category doesn't have any subcategories. The main category will be used.
-          </div>
-        )}
-      </div>
-    )}
+                  {/* Sub Category - Show when main category is selected */}
+                  {formData.mainCategory && (
+                    <div className="form-group">
+                      <label className="form-label">
+                        Sub Category {subCategories.length === 0 && '(No subcategories available)'}
+                      </label>
+                      <select
+                        name="subCategory"
+                        value={formData.subCategory || ''}
+                        onChange={async (e) => {
+                          const subCatId = e.target.value;
+                          console.log('Selected subcategory:', subCatId);
+                          
+                          setFormData(prev => ({
+                            ...prev,
+                            subCategory: subCatId,
+                            childCategory: '',
+                            category: subCatId // Set as final category by default
+                          }));
 
-    {/* Child Category - Show when sub category has children */}
-    {formData.subCategory && childCategories.length > 0 && (
-      <div className="form-group">
-        <label className="form-label">
-          {childCategories[0]?.level === 3 ? 'Specific Category' : 'Child Category'}
-        </label>
-        <select
-          name="childCategory"
-          value={formData.childCategory || ''}
-          onChange={(e) => {
-            const childCatId = e.target.value;
-            setFormData(prev => ({
-              ...prev,
-              childCategory: childCatId,
-              category: childCatId // Set as final category
-            }));
-          }}
-          className="form-select"
-        >
-          <option value="">Select {childCategories[0]?.level === 3 ? 'Specific Category' : 'Child Category'}</option>
-          {childCategories.map(category => (
-            <option key={category._id} value={category._id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </div>
-    )}
+                          if (subCatId) {
+                            try {
+                              console.log('Fetching child categories for:', subCatId);
+                              const response = await categoryAPI.getSubcategories(subCatId);
+                              console.log('Child categories loaded:', response);
+                              const children = response || []; // FIXED: Use response directly
+                              setChildCategories(children);
+                              
+                              // If children exist, reset final category (will be set when child is selected)
+                              if (children.length > 0) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  category: ''
+                                }));
+                              }
+                              // If no children, subcategory is the final category (already set above)
+                            } catch (error) {
+                              console.error('Error fetching child categories:', error);
+                              toast.error('Failed to load child categories');
+                              setChildCategories([]);
+                              // Keep subcategory as final category even if error
+                            }
+                          } else {
+                            setChildCategories([]);
+                            setFormData(prev => ({
+                              ...prev,
+                              category: ''
+                            }));
+                          }
+                        }}
+                        className="form-select"
+                        disabled={subCategories.length === 0}
+                      >
+                        <option value="">
+                          {subCategories.length === 0 ? 'No subcategories available' : 'Select Sub Category'}
+                        </option>
+                        {subCategories.map(category => (
+                          <option key={category._id} value={category._id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                      {subCategories.length === 0 && (
+                        <div style={{ 
+                          fontSize: 'var(--font-size-sm)', 
+                          color: 'var(--text-light)',
+                          marginTop: 'var(--space-2)'
+                        }}>
+                          This category doesn't have any subcategories. The main category will be used.
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-    {/* Display selected category path */}
-    {categoryPath && (
-      <div style={{
-        padding: 'var(--space-3)',
-        backgroundColor: 'var(--bg-light)',
-        borderRadius: 'var(--radius-md)',
-        border: '1px solid var(--border-light)'
-      }}>
-        <div style={{ 
-          fontSize: 'var(--font-size-sm)',
-          color: 'var(--text-light)',
-          marginBottom: 'var(--space-1)'
-        }}>
-          Selected Category:
-        </div>
-        <div style={{ 
-          fontWeight: '600',
-          color: 'var(--accent-gold)'
-        }}>
-          {categoryPath}
-        </div>
-      </div>
-    )}
-  </div>
-</div>
-              {/* Image Upload Section */}
+                  {/* Child Category - Show when sub category has children */}
+                  {formData.subCategory && childCategories.length > 0 && (
+                    <div className="form-group">
+                      <label className="form-label">
+                        {childCategories[0]?.level === 3 ? 'Specific Category' : 'Child Category'}
+                      </label>
+                      <select
+                        name="childCategory"
+                        value={formData.childCategory || ''}
+                        onChange={(e) => {
+                          const childCatId = e.target.value;
+                          setFormData(prev => ({
+                            ...prev,
+                            childCategory: childCatId,
+                            category: childCatId // Set as final category
+                          }));
+                        }}
+                        className="form-select"
+                      >
+                        <option value="">Select {childCategories[0]?.level === 3 ? 'Specific Category' : 'Child Category'}</option>
+                        {childCategories.map(category => (
+                          <option key={category._id} value={category._id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Display selected category path */}
+                  {categoryPath && (
+                    <div style={{
+                      padding: 'var(--space-3)',
+                      backgroundColor: 'var(--bg-light)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-light)'
+                    }}>
+                      <div style={{ 
+                        fontSize: 'var(--font-size-sm)',
+                        color: 'var(--text-light)',
+                        marginBottom: 'var(--space-1)'
+                      }}>
+                        Selected Category:
+                      </div>
+                      <div style={{ 
+                        fontWeight: '600',
+                        color: 'var(--accent-gold)'
+                      }}>
+                        {categoryPath}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Image Upload Section - FIXED */}
               <div>
                 <h4 style={{ 
                   marginBottom: 'var(--space-4)',
@@ -847,7 +844,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
                   </p>
                 </div>
 
-                {/* Additional Images */}
+                {/* Additional Images - FIXED: Safe length checks */}
                 <div className="form-group">
                   <label className="form-label">Additional Images</label>
                   <div style={{ 
@@ -908,18 +905,18 @@ const ProductForm = ({ product, onClose, onSave }) => {
                     </label>
                   </div>
                   
-                  {/* Display additional images */}
-                  {formData.images.length > 0 && (
+                  {/* Display additional images - FIXED: Safe length checks */}
+                  {(formData.images && formData.images.length > 0) && (
                     <div style={{ marginTop: 'var(--space-4)' }}>
                       <h5 style={{ marginBottom: 'var(--space-3)', color: 'var(--text-dark)' }}>
-                        Additional Images ({formData.images.length})
+                        Additional Images ({(formData.images || []).length})
                       </h5>
                       <div style={{ 
                         display: 'grid', 
                         gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
                         gap: 'var(--space-3)'
                       }}>
-                        {formData.images.map((image, index) => (
+                        {(formData.images || []).map((image, index) => (
                           <div key={index} style={{ position: 'relative' }}>
                             <img 
                               src={image.url} 
