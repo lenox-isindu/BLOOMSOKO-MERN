@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import Navbar from '../components/Navbar.jsx'; // Import Navbar
+import Navbar from '../components/Navbar.jsx';
 import styles from './ProductCatalog.module.css';
 
 const ProductCatalog = () => {
@@ -38,78 +38,128 @@ const ProductCatalog = () => {
         setCartCount(getCartCount());
     }, [getCartCount]);
 
-    // Fetch categories from backend
-    const fetchCategories = async () => {
-        try {
-            const response = await fetch(`${API_URL}/categories`);
-            if (response.ok) {
-                const data = await response.json();
-                // Get only main categories (level 1)
-                const mainCategories = (data.categories || data || []).filter(cat => cat.level === 1);
-                setCategories(mainCategories);
-            } else {
-                console.error('Failed to fetch categories');
-            }
-        } catch (error) {
-            console.error('Error fetching categories:', error);
+   // Fetch categories from backend - 
+const fetchCategories = async () => {
+    try {
+        console.log(' Fetching categories from:', `${API_URL}/categories`);
+        
+        const response = await fetch(`${API_URL}/categories`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            
+            signal: AbortSignal.timeout(10000) 
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-    };
-
-    // Fetch products 
-    const fetchProducts = async () => {
-        try {
-            setLoading(true);
-            setError(null);
+        
+        const data = await response.json();
+        console.log(' Categories API response:', data);
+        
+        // Handle different response formats
+        let categoriesArray = [];
+        
+        if (Array.isArray(data)) {
+            categoriesArray = data;
+        } else if (data && Array.isArray(data.categories)) {
+            categoriesArray = data.categories;
+        } else if (data && Array.isArray(data.data)) {
+            categoriesArray = data.data;
+        } else if (data && typeof data === 'object') {
+            // If it's a single object or has nested structure
+            categoriesArray = Object.values(data).filter(item => 
+                item && typeof item === 'object' && item.name
+            );
+        }
+        
+        console.log(' Extracted categories array:', categoriesArray);
+        
+        // Get main categories (level 1) or all categories if no level specified
+        const mainCategories = categoriesArray
+            .filter(cat => cat && cat.name) 
+            .filter(cat => cat.level === 1 || !cat.level) 
             
-            const params = new URLSearchParams();
+        console.log(' Main categories to display:', mainCategories);
+        setCategories(mainCategories);
+        
+    } catch (error) {
+        console.error(' Error fetching categories:', error);
+        
+        if (error.name === 'TimeoutError') {
+            setError('Categories server is taking too long to respond. Please check if the backend is running.');
+        } else if (error.message.includes('Failed to fetch')) {
+            setError('Cannot connect to categories server. Please make sure the backend is running on http://localhost:5000');
+        } else {
+            setError(`Error loading categories: ${error.message}`);
+        }
+        
+        setCategories([]); 
+    }
+};
+// In ProductCatalog.jsx - Update the category filtering
+const fetchProducts = async () => {
+    try {
+        setLoading(true);
+        setError(null);
+        
+        const params = new URLSearchParams();
 
-            // Add category filter
-            if (currentCategory !== 'all') {
-                params.append('category', currentCategory);
-            }
+        // Don't send category filter to backend - we'll filter client-side
+        // This is because backend expects category IDs but we have names
 
-            // Add search filter
-            if (searchQuery.trim()) {
-                params.append('search', searchQuery.trim());
-            }
+        // Add search filter
+        if (searchQuery.trim()) {
+            params.append('search', searchQuery.trim());
+        }
 
-            // Add price filter
-            params.append('maxPrice', currentMaxPrice);
-            
-            // Add sort - convert to backend format
-            const [sortField, sortDirection] = currentSort.split(':');
-            params.append('sort', `${sortField}:${sortDirection}`);
+        // Add price filter
+        params.append('maxPrice', currentMaxPrice);
+        
+        // Add sort
+        const [sortField, sortDirection] = currentSort.split(':');
+        params.append('sort', `${sortField}:${sortDirection}`);
 
-            // Add flags
-            selectedFlags.forEach(flag => {
-                params.append(flag, 'true');
+        // Add flags
+        selectedFlags.forEach(flag => {
+            params.append(flag, 'true');
+        });
+
+        const queryString = params.toString();
+        const url = `${API_URL}/products?${queryString}`;
+
+        console.log('Fetching products from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch products: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        let productsData = data.products || data || [];
+        
+        // Filter by category on client side
+        if (currentCategory !== 'all') {
+            productsData = productsData.filter(product => {
+                const productCategory = product.category?.name || product.category;
+                return productCategory?.toLowerCase().includes(currentCategory.toLowerCase());
             });
-
-            const queryString = params.toString();
-            const url = `${API_URL}/products?${queryString}`;
-
-            console.log('Fetching products from:', url);
-            
-            const response = await fetch(url);
-            
-            if (!response.ok) {
-                throw new Error(`Failed to fetch products: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            const productsData = data.products || data || [];
-            
-            console.log('Fetched products:', productsData.length);
-            setProducts(productsData);
-            
-        } catch (error) {
-            console.error('Error fetching products:', error);
-            setError('Failed to load products. Please check if the server is running.');
-            setProducts([]);
-        } finally {
-            setLoading(false);
         }
-    };
+        
+        console.log('Fetched products:', productsData.length);
+        setProducts(productsData);
+        
+    } catch (error) {
+        console.error('Error fetching products:', error);
+        setError('Failed to load products. Please check if the server is running.');
+        setProducts([]);
+    } finally {
+        setLoading(false);
+    }
+};
 
     // Handle category selection
     const handleCategoryClick = (categoryName) => {
@@ -247,6 +297,38 @@ const ProductCatalog = () => {
         };
     };
 
+// Add this temporary debug function to your ProductCatalog.jsx
+const debugCategoriesAPI = async () => {
+    try {
+        console.log(' Testing categories API...');
+        const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${API_URL}/categories`);
+        
+        console.log(' API Response status:', response.status);
+        console.log(' API Response ok:', response.ok);
+        
+        const data = await response.json();
+        console.log('RAW API RESPONSE:', data);
+        
+        // Check what type of data we got
+        console.log('🔸 Data type:', typeof data);
+        console.log('🔸 Is array?:', Array.isArray(data));
+        
+        if (data && typeof data === 'object') {
+            console.log('🔸 Object keys:', Object.keys(data));
+            if (data.categories) {
+                console.log('🔸 data.categories type:', typeof data.categories);
+                console.log('🔸 data.categories is array?:', Array.isArray(data.categories));
+            }
+        }
+        
+    } catch (error) {
+        console.error(' DEBUG API Error:', error);
+    }
+};
+
+
+
     // Clear all filters
     const clearAllFilters = () => {
         setCurrentCategory('all');
@@ -284,7 +366,9 @@ const ProductCatalog = () => {
                         🔍 Search
                     </button>
                 </form>
+      
             </div>
+            
 
             {/* Header */}
             <div className={styles.shopHeader}>
@@ -321,7 +405,7 @@ const ProductCatalog = () => {
                                 </button>
                             </li>
                             {categories.map(category => (
-                                <li key={category._id}>
+                                <li key={category._id || category.id || category.name}>
                                     <button 
                                         className={currentCategory === category.name ? styles.active : ''}
                                         onClick={() => handleCategoryClick(category.name)}
@@ -331,6 +415,9 @@ const ProductCatalog = () => {
                                 </li>
                             ))}
                         </ul>
+                        {categories.length === 0 && !loading && (
+                            <p className={styles.noCategories}>No categories available</p>
+                        )}
                     </div>
                     
                     {/* Product Features */}
