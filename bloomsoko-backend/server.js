@@ -1,3 +1,4 @@
+// server.js - USE THIS EXACT VERSION (your original)
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -12,6 +13,8 @@ import productRoutes from './routes/products.js';
 import cartRoutes from './routes/cart.js'; 
 import orderRoutes from './routes/orders.js'; 
 import paystackRoutes from './routes/paystack.js';
+import promotionRoutes from './routes/promotions.js';
+
 dotenv.config();
 
 const app = express();
@@ -43,8 +46,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/products', productRoutes); 
 app.use('/api/cart', cartRoutes); 
 app.use('/api/orders', orderRoutes); 
-app.use('/api/orders', orderRoutes);
 app.use('/api/paystack', paystackRoutes);
+app.use('/api/promotions', promotionRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Bloomsoko Backend is running!' });

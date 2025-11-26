@@ -10,7 +10,8 @@ const AdminSidebar = () => {
     { path: '/admin/categories', icon: '📁', label: 'Categories' },
     { path: '/admin/orders', icon: '📦', label: 'Orders' },
     { path: '/admin/users', icon: '👥', label: 'Users' },
-    { path: '/admin/banners', icon: '🎯', label: 'Banners' },
+    { path: '/admin/promotions', icon: '🎯', label: 'Promotions' },
+    { path: '/admin/profile', icon: '👤', label: 'Profile' },
   ];
 
   return (

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { productAPI, categoryAPI } from '../services/api.js';
+import Navbar from '../components/Navbar.jsx'; // Import the Navbar
 import styles from './Home.module.css';
-
 
 const Home = () => {
   const [featuredProducts, setFeaturedProducts] = useState([]);
@@ -74,20 +74,8 @@ const Home = () => {
 
   return (
     <div className={styles.homePage}>
-      {/* Header */}
-      <header ref={headerRef} className={styles.mainHeader}>
-        <div className={styles.logo}>Bloom <span>Soko</span></div>
-        <nav className={styles.nav}>
-          <ul>
-            <li><Link to="/" className={styles.navLink}>Home</Link></li>
-            <li><Link to="/products" className={styles.navLink}>Products</Link></li>
-            <li><Link to="/categories" className={styles.navLink}>Categories</Link></li>
-            <li><a href="#about" className={styles.navLink}>About</a></li>
-            <li><Link to="/products" className={styles.shopNowBtn}>Shop Now</Link></li>
-          </ul>
-        </nav>
-      </header>
-
+      {/* Use the new Navbar component */}
+      <Navbar />
       {/* Hero Section */}
       <section ref={heroRef} className={styles.hero}>
         <div className={styles.heroContent}>

@@ -765,3 +765,136 @@
     font-weight: 600;
     font-size: 0.9rem;
 }
+/* User Header Styles */
+.userHeader {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+}
+
+.userMenu {
+    position: relative;
+    display: inline-block;
+}
+
+.userGreeting {
+    background: white;
+    padding: 12px 20px;
+    border-radius: 50px;
+    font-weight: 600;
+    color: #2E7D32;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border: 2px solid #4CAF50;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.userGreeting:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+}
+
+.userDropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    padding: 0.5rem;
+    min-width: 180px;
+    margin-top: 8px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.3s ease;
+    z-index: 1001;
+    border: 1px solid #e8f5e9;
+}
+
+.userMenu:hover .userDropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.dropdownItem {
+    display: block;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    text-decoration: none;
+    color: #333;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 8px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9rem;
+    transition: background 0.3s ease;
+}
+
+.dropdownItem:hover {
+    background: #f8fdf8;
+    color: #2E7D32;
+}
+
+/* Auth Links for non-logged in users */
+.authLinks {
+    display: flex;
+    gap: 1rem;
+}
+
+.authLink {
+    background: white;
+    padding: 12px 20px;
+    border-radius: 50px;
+    text-decoration: none;
+    color: #2E7D32;
+    font-weight: 600;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border: 2px solid #4CAF50;
+    transition: all 0.3s ease;
+}
+
+.authLink:hover {
+    background: #4CAF50;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* Update cart header position to avoid overlap */
+.cartHeader {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .userHeader {
+        top: 80px;
+        left: 20px;
+    }
+    
+    .authLinks {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .authLink {
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+    
+    .userGreeting {
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+}

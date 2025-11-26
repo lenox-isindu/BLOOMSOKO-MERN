@@ -10,6 +10,8 @@ const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -23,25 +25,34 @@ const AdminLogin = () => {
     setLoading(true);
 
     try {
-      // Simple admin authentication (you can enhance this later)
-      if (formData.email === 'admin@bloomsoko.com' && formData.password === 'admin123') {
-        // Store admin session
-        localStorage.setItem('adminToken', 'admin-authenticated');
-        localStorage.setItem('adminUser', JSON.stringify({
-          id: 1,
-          name: 'Admin User',
-          email: 'admin@bloomsoko.com',
-          role: 'admin'
-        }));
+      // Call the actual backend API
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.data.user.role === 'admin') {
+        // Store admin session with real data from backend
+        localStorage.setItem('adminToken', data.data.token);
+        localStorage.setItem('adminUser', JSON.stringify(data.data.user));
         
-        toast.success('Welcome back, Admin!');
+        toast.success(`Welcome back, ${data.data.user.firstName}!`);
         navigate('/admin');
       } else {
-        toast.error('Invalid admin credentials');
+        if (data.data?.user?.role !== 'admin') {
+          toast.error('Access denied. Admin privileges required.');
+        } else {
+          toast.error(data.message || 'Invalid admin credentials');
+        }
       }
     } catch (error) {
       console.error('Login error:', error);
-      toast.error('Login failed');
+      toast.error('Login failed. Please try again.');
     } finally {
       setLoading(false);
     }

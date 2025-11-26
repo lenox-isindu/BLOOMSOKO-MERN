@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import Notifications from './Notifications.jsx'; // Add this import
 
 const AdminHeader = () => {
   const navigate = useNavigate();
@@ -31,6 +32,9 @@ const AdminHeader = () => {
         alignItems: 'center', 
         gap: 'var(--space-4)' 
       }}>
+        {/* Notifications Component */}
+        <Notifications />
+        
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 

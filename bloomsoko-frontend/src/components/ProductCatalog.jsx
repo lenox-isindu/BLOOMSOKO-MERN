@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import Navbar from '../components/Navbar.jsx'; // Import Navbar
 import styles from './ProductCatalog.module.css';
-
 
 const ProductCatalog = () => {
     const [products, setProducts] = useState([]);
@@ -112,17 +112,17 @@ const ProductCatalog = () => {
     };
 
     // Handle category selection
-  const handleCategoryClick = (categoryName) => {
-    if (categoryName === 'all') {
-        setCurrentCategory('all');
-        navigate('/products', { replace: true });
-    } else {
-        // Convert category name to slug for the URL
-        const categorySlug = categoryName.toLowerCase().replace(/\s+/g, '-');
-        navigate(`/categories/${categorySlug}`, { replace: true });
-    }
-    setIsSidebarOpen(false);
-};
+    const handleCategoryClick = (categoryName) => {
+        if (categoryName === 'all') {
+            setCurrentCategory('all');
+            navigate('/products', { replace: true });
+        } else {
+            // Convert category name to slug for the URL
+            const categorySlug = categoryName.toLowerCase().replace(/\s+/g, '-');
+            navigate(`/categories/${categorySlug}`, { replace: true });
+        }
+        setIsSidebarOpen(false);
+    };
 
     // Handle search
     const handleSearch = (e) => {
@@ -162,8 +162,19 @@ const ProductCatalog = () => {
         setIsSidebarOpen(!isSidebarOpen);
     };
 
-    // Add to cart handler
+    // Check authentication before adding to cart
     const handleAddToCart = (product) => {
+        // Check if user is authenticated
+        const user = localStorage.getItem('bloomsoko-user');
+        if (!user) {
+            // Redirect to login page with return URL
+            navigate('/login', { 
+                state: { from: '/products' },
+                replace: true 
+            });
+            return;
+        }
+
         const categoryName = product.category?.name || product.category || 'Uncategorized';
         const isFarmProduct = categoryName.toLowerCase().includes('agriculture') || 
                             categoryName.toLowerCase().includes('farm');
@@ -195,26 +206,26 @@ const ProductCatalog = () => {
 
     // Get product badges
     const getProductBadges = (product) => {
-    const badges = [];
-    
-    if (product.flags?.isOutOfStock || product.inventory?.stock === 0) {
-        badges.push({ text: 'Out of Stock', class: 'outOfStock' });
-    }
-    
-    if (product.productType === 'growing') {
-        badges.push({ text: '🌱 Growing', class: 'growing' });
-    } else if (product.productType === 'pre-order') {
-        badges.push({ text: '📅 Pre-order', class: 'preOrder' });
-    }
-    
-    // Updated badge priorities
-    if (product.flags?.isNew) badges.push({ text: '🆕 New', class: 'new' });
-    if (product.flags?.isLimited) badges.push({ text: '⏰ Limited', class: 'limited' });
-    if (product.flags?.onSale) badges.push({ text: '🏷️ Offer', class: 'sale' });
-    if (product.flags?.isBestSeller) badges.push({ text: '🔥 Best Seller', class: 'bestSeller' });
-    
-    return badges.slice(0, 2);
-};
+        const badges = [];
+        
+        if (product.flags?.isOutOfStock || product.inventory?.stock === 0) {
+            badges.push({ text: 'Out of Stock', class: 'outOfStock' });
+        }
+        
+        if (product.productType === 'growing') {
+            badges.push({ text: '🌱 Growing', class: 'growing' });
+        } else if (product.productType === 'pre-order') {
+            badges.push({ text: '📅 Pre-order', class: 'preOrder' });
+        }
+        
+        // Updated badge priorities
+        if (product.flags?.isNew) badges.push({ text: '🆕 New', class: 'new' });
+        if (product.flags?.isLimited) badges.push({ text: '⏰ Limited', class: 'limited' });
+        if (product.flags?.onSale) badges.push({ text: '🏷️ Offer', class: 'sale' });
+        if (product.flags?.isBestSeller) badges.push({ text: '🔥 Best Seller', class: 'bestSeller' });
+        
+        return badges.slice(0, 2);
+    };
 
     // Get growing progress for growing products
     const getGrowingProgress = (product) => {
@@ -247,16 +258,8 @@ const ProductCatalog = () => {
 
     return (
         <div className={styles.productCatalog}>
-            {/* Cart Header */}
-            <div className={styles.cartHeader}>
-                <Link to="/cart" className={styles.cartLink}>
-                    <span className={styles.cartIcon}>🛒</span>
-                    {cartCount > 0 && (
-                        <span className={styles.cartCount}>{cartCount}</span>
-                    )}
-                    <span className={styles.cartText}>Cart</span>
-                </Link>
-            </div>
+            {/* Use Navbar instead of custom header */}
+            <Navbar />
 
             {/* Mobile Sidebar Toggle */}
             <button className={styles.sidebarToggle} onClick={toggleSidebar}>
@@ -331,43 +334,44 @@ const ProductCatalog = () => {
                     </div>
                     
                     {/* Product Features */}
-<div className={styles.filterSection}>
-    <h3>Product Features</h3>
-    <div className={styles.flagFilters}>
-        <label className={styles.flagOption}>
-            <input
-                type="checkbox"
-                checked={selectedFlags.includes('isNew')}
-                onChange={() => toggleFlagFilter('isNew')}
-            />
-            <span>🆕 New Arrivals</span>
-        </label>
-        <label className={styles.flagOption}>
-            <input
-                type="checkbox"
-                checked={selectedFlags.includes('isLimited')}
-                onChange={() => toggleFlagFilter('isLimited')}
-            />
-            <span>⏰ Limited Edition</span>
-        </label>
-        <label className={styles.flagOption}>
-            <input
-                type="checkbox"
-                checked={selectedFlags.includes('onSale')}
-                onChange={() => toggleFlagFilter('onSale')}
-            />
-            <span>🏷️ On Offer</span>
-        </label>
-        <label className={styles.flagOption}>
-            <input
-                type="checkbox"
-                checked={selectedFlags.includes('isBestSeller')}
-                onChange={() => toggleFlagFilter('isBestSeller')}
-            />
-            <span>🔥 Best Seller</span>
-        </label>
-    </div>
-</div>
+                    <div className={styles.filterSection}>
+                        <h3>Product Features</h3>
+                        <div className={styles.flagFilters}>
+                            <label className={styles.flagOption}>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedFlags.includes('isNew')}
+                                    onChange={() => toggleFlagFilter('isNew')}
+                                />
+                                <span>🆕 New Arrivals</span>
+                            </label>
+                            <label className={styles.flagOption}>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedFlags.includes('isLimited')}
+                                    onChange={() => toggleFlagFilter('isLimited')}
+                                />
+                                <span>⏰ Limited Edition</span>
+                            </label>
+                            <label className={styles.flagOption}>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedFlags.includes('onSale')}
+                                    onChange={() => toggleFlagFilter('onSale')}
+                                />
+                                <span>🏷️ On Offer</span>
+                            </label>
+                            <label className={styles.flagOption}>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedFlags.includes('isBestSeller')}
+                                    onChange={() => toggleFlagFilter('isBestSeller')}
+                                />
+                                <span>🔥 Best Seller</span>
+                            </label>
+                        </div>
+                    </div>
+
                     {/* Price Range */}
                     <div className={styles.filterSection}>
                         <h3>Price Range</h3>
@@ -589,11 +593,11 @@ const ProductCatalog = () => {
                                         </button>
 
                                         <Link 
-    to={`/product/${product._id}`} 
-    className={styles.quickView}
->
-    View Details →
-</Link>
+                                            to={`/product/${product._id}`} 
+                                            className={styles.quickView}
+                                        >
+                                            View Details →
+                                        </Link>
                                     </div>
                                 </div>
                             );

@@ -1,17 +1,18 @@
+// App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 // Admin Components
 import AdminLogin from './pages/admin/AdminLogin.jsx';
+import AdminProfile from './pages/admin/AdminProfile.jsx';
 import AdminLayout from './components/admin/AdminLayout.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 import ProductsManagement from './pages/admin/ProductsManagement.jsx';
-import CategoriesManagement from './pages/admin/CategoriesManagement.jsx'; // NEW IMPORT
+import CategoriesManagement from './pages/admin/CategoriesManagement.jsx';
 import OrdersManagement from './pages/admin/OrdersManagement.jsx';
 import UsersManagement from './pages/admin/UsersManagement.jsx';
-
-
+import PromotionsManagement from './pages/admin/PromotionsManagement.jsx';
 
 // Customer Components
 import Home from './pages/Home.jsx';
@@ -25,6 +26,12 @@ import CustomerProductDetail from './components/CustomerProductDetail.jsx';
 import OrderSuccess from './pages/OrderSuccess.jsx';
 import PaymentCallback from './components/PaymentCallback.jsx';
 import Orders from './pages/Orders.jsx';
+import Profile from './pages/Profile.jsx';
+
+// NEW: Customer Authentication Components
+import Login from './pages/Login.jsx';
+import Register from './pages/Register.jsx';
+
 // CSS imports 
 import './styles/globals.css';
 import './styles/customer.css'; 
@@ -62,11 +69,11 @@ const ProtectedRoute = ({ children }) => {
   const isAuthenticated = localStorage.getItem('adminToken');
   return isAuthenticated ? children : <Navigate to="/admin/login" replace />;
 };
+
 function App() {
   return (
     <CartProvider>
       <Router>
-        {/* Remove global className to avoid conflicts */}
         <div>
           <Toaster 
             position="top-right"
@@ -88,6 +95,19 @@ function App() {
                 <Home />
               </div>
             } />
+            
+            {/* NEW: Customer Authentication Routes */}
+            <Route path="/login" element={
+              <div className="customer-body">
+                <Login />
+              </div>
+            } />
+            <Route path="/register" element={
+              <div className="customer-body">
+                <Register />
+              </div>
+            } />
+
             <Route path="/products" element={
               <div className="customer-body">
                 <ProductCatalog />
@@ -126,7 +146,11 @@ function App() {
                 <ShoppingCart />
               </div>
             } />
-
+             <Route path="/Profile" element={
+              <div className="customer-body">
+                <Profile />
+              </div>
+            } />
             <Route path="/product/:id" element={
               <div className="customer-body">
                 <CustomerProductDetail />
@@ -139,9 +163,6 @@ function App() {
                 <CategoryPage />
               </div>
             } />
-            
-            {/* Checkout */}
-            <Route path="/checkout" element={<Checkout />} />
             
             {/* Coming Soon Pages */}
             <Route path="/about" element={
@@ -156,20 +177,22 @@ function App() {
             } />
 
             {/* Admin Routes - Use admin styles */}
-           <Route path="/admin/login" element={<AdminLogin />} />
-<Route path="/admin/*" element={
-  <ProtectedRoute>
-    <div className="admin-app">
-      <AdminLayout />
-    </div>
-  </ProtectedRoute>
-}>
-  <Route index element={<AdminDashboard />} />
-  <Route path="products" element={<ProductsManagement />} />
-  <Route path="categories" element={<CategoriesManagement />} />
-  <Route path="orders" element={<OrdersManagement />} />
-  <Route path="users" element={<UsersManagement />} />
-</Route>
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/*" element={
+              <ProtectedRoute>
+                <div className="admin-app">
+                  <AdminLayout />
+                </div>
+              </ProtectedRoute>
+            }>
+              <Route index element={<AdminDashboard />} />
+              <Route path="products" element={<ProductsManagement />} />
+              <Route path="categories" element={<CategoriesManagement />} />
+              <Route path="orders" element={<OrdersManagement />} />
+              <Route path="users" element={<UsersManagement />} />
+              <Route path="profile" element={<AdminProfile />} />
+              <Route path="promotions" element={<PromotionsManagement />} />
+            </Route>
 
             {/* Redirect to home for unknown routes */}
             <Route path="*" element={<Navigate to="/" replace />} />
