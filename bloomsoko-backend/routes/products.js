@@ -173,38 +173,77 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // SUBCATEGORY FILTER - For direct subcategory filtering
+    // SUBCATEGORY FILTER - For direct subcategory filtering (Level 2)
     if (req.query.subcategory) {
       console.log('🔍 FILTERING BY SUBCATEGORY:', req.query.subcategory);
       
-      const subcategoryDoc = await Category.findOne({
+      const subcategorySlugs = Array.isArray(req.query.subcategory) 
+        ? req.query.subcategory 
+        : [req.query.subcategory];
+      
+      const subcategoryDocs = await Category.find({
         $or: [
-          { 'seo.slug': { $regex: new RegExp(req.query.subcategory, 'i') } },
-          { name: { $regex: new RegExp(req.query.subcategory, 'i') } }
+          { 'seo.slug': { $in: subcategorySlugs } },
+          { name: { $in: subcategorySlugs.map(s => new RegExp(s, 'i')) } }
         ]
       });
       
-      if (subcategoryDoc) {
-        console.log('📊 Found subcategory:', subcategoryDoc.name);
-        query.category = subcategoryDoc._id;
+      if (subcategoryDocs.length > 0) {
+        console.log('📊 Found subcategories:', subcategoryDocs.map(doc => doc.name));
+        
+        // If we already have a category filter, combine with $and for proper hierarchy
+        if (query.category) {
+          const existingCategoryIds = query.category.$in;
+          const subcategoryIds = subcategoryDocs.map(doc => doc._id);
+          
+          // Find intersection: products that are in both the main category AND the selected subcategories
+          query.$and = [
+            { category: { $in: existingCategoryIds } },
+            { category: { $in: subcategoryIds } }
+          ];
+          delete query.category;
+        } else {
+          query.category = { $in: subcategoryDocs.map(doc => doc._id) };
+        }
       }
     }
 
-    // ITEM FILTER - For level 3 items
+    // ITEM FILTER - For level 3 items (SPECIFICALLY FOR FASHION)
     if (req.query.item) {
       console.log('🔍 FILTERING BY ITEM:', req.query.item);
       
-      const itemDoc = await Category.findOne({
+      const itemSlugs = Array.isArray(req.query.item) 
+        ? req.query.item 
+        : [req.query.item];
+      
+      const itemDocs = await Category.find({
         $or: [
-          { 'seo.slug': { $regex: new RegExp(req.query.item, 'i') } },
-          { name: { $regex: new RegExp(req.query.item, 'i') } }
-        ],
-        level: 3
+          { 'seo.slug': { $in: itemSlugs } },
+          { name: { $in: itemSlugs.map(s => new RegExp(s, 'i')) } }
+        ]
       });
       
-      if (itemDoc) {
-        console.log('📊 Found item:', itemDoc.name);
-        query.category = itemDoc._id;
+      if (itemDocs.length > 0) {
+        console.log('📊 Found items:', itemDocs.map(doc => doc.name));
+        
+        const itemIds = itemDocs.map(doc => doc._id);
+        
+        // If we already have a category filter, combine with $and
+        if (query.category) {
+          if (query.$and) {
+            // Already have $and from subcategory filter, add item filter
+            query.$and.push({ category: { $in: itemIds } });
+          } else {
+            const existingCategoryIds = query.category.$in;
+            query.$and = [
+              { category: { $in: existingCategoryIds } },
+              { category: { $in: itemIds } }
+            ];
+            delete query.category;
+          }
+        } else {
+          query.category = { $in: itemIds };
+        }
       }
     }
 
@@ -253,6 +292,12 @@ router.get('/', async (req, res) => {
 
     console.log(`✅ QUERY RESULTS: Found ${products.length} products out of ${total} total`);
 
+    // Debug: Show what categories the products belong to
+    console.log('📦 PRODUCT CATEGORIES:');
+    products.forEach(product => {
+      console.log(`   - ${product.name} → ${product.category?.name} (Level ${product.category?.level})`);
+    });
+
     res.json({
       products,
       totalPages: Math.ceil(total / limit),
@@ -294,42 +339,120 @@ router.post('/fix-category-slugs', async (req, res) => {
   }
 });
 
-// Debug route to check Agricultural Produce hierarchy
-router.get('/debug/agricultural-hierarchy', async (req, res) => {
+// Debug route to check Fashion hierarchy
+router.get('/debug/fashion-hierarchy', async (req, res) => {
   try {
-    const agCategory = await Category.findOne({ name: 'Agricultural Produce' });
+    const fashionCategory = await Category.findOne({ name: 'Fashion' });
     
-    if (!agCategory) {
-      return res.json({ error: 'Agricultural Produce category not found' });
+    if (!fashionCategory) {
+      return res.json({ error: 'Fashion category not found' });
     }
     
-    console.log('🚜 Agricultural Produce Category:', agCategory);
+    console.log('👗 Fashion Category:', fashionCategory);
     
-    // Get direct children
-    const children = await Category.find({ parent: agCategory._id });
-    console.log('🌱 Direct children:', children.map(c => c.name));
+    // Get direct children (Level 2)
+    const level2Categories = await Category.find({ parent: fashionCategory._id });
+    console.log('🌱 Level 2 categories:', level2Categories.map(c => c.name));
     
-    // Get all products in Agricultural Produce hierarchy
-    const hierarchyIds = await getCategoryHierarchyIds(agCategory._id);
+    // Get all level 3 items
+    const level3Items = [];
+    for (const level2Cat of level2Categories) {
+      const items = await Category.find({ parent: level2Cat._id });
+      level3Items.push(...items);
+      console.log(`   ${level2Cat.name} items:`, items.map(i => i.name));
+    }
+    
+    // Get all products in Fashion hierarchy
+    const hierarchyIds = await getCategoryHierarchyIds(fashionCategory._id);
     console.log('🎯 Hierarchy IDs:', hierarchyIds);
     
     const products = await Product.find({ category: { $in: hierarchyIds } })
       .populate('category', 'name level');
     
-    console.log('📦 Products in Agricultural hierarchy:');
+    console.log('📦 Products in Fashion hierarchy:');
     products.forEach(p => {
       console.log(`   - ${p.name} → ${p.category?.name} (Level ${p.category?.level})`);
     });
     
     res.json({
-      mainCategory: agCategory,
-      children: children,
+      mainCategory: fashionCategory,
+      level2Categories: level2Categories,
+      level3Items: level3Items,
       hierarchyIds: hierarchyIds,
       products: products
     });
     
   } catch (error) {
     console.error('Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Test Fashion filtering specifically
+router.get('/test/fashion-filter', async (req, res) => {
+  try {
+    const { item, subcategory } = req.query;
+    
+    console.log('🧪 TESTING FASHION FILTERING...');
+    console.log('   Query params:', { item, subcategory });
+    
+    // Test the fashion category
+    const fashionCategory = await Category.findOne({ 'seo.slug': 'fashion' });
+    if (!fashionCategory) {
+      return res.json({ error: 'Fashion category not found' });
+    }
+    
+    // Build base query with fashion hierarchy
+    const hierarchyIds = await getCategoryHierarchyIds(fashionCategory._id);
+    let query = { 
+      status: 'active',
+      category: { $in: hierarchyIds }
+    };
+    
+    console.log('   Base fashion hierarchy IDs:', hierarchyIds);
+    
+    // Test item filtering
+    if (item) {
+      const itemSlugs = Array.isArray(item) ? item : [item];
+      const itemDocs = await Category.find({
+        'seo.slug': { $in: itemSlugs }
+      });
+      
+      console.log('   Found items:', itemDocs.map(doc => doc.name));
+      
+      if (itemDocs.length > 0) {
+        const itemIds = itemDocs.map(doc => doc._id);
+        query.$and = [
+          { category: { $in: hierarchyIds } },
+          { category: { $in: itemIds } }
+        ];
+        delete query.category;
+      }
+    }
+    
+    console.log('   Final query:', JSON.stringify(query, null, 2));
+    
+    const products = await Product.find(query)
+      .populate('category', 'name level');
+    
+    console.log(`   Found ${products.length} products`);
+    products.forEach(p => {
+      console.log(`     - ${p.name} → ${p.category?.name}`);
+    });
+    
+    res.json({
+      fashionCategory: fashionCategory,
+      query: query,
+      productsFound: products.length,
+      products: products.map(p => ({
+        name: p.name,
+        category: p.category?.name,
+        categoryLevel: p.category?.level
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Test error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -352,19 +475,19 @@ router.get('/debug/category-slugs', async (req, res) => {
       console.log(`   - "${cat.name}" → seo.slug: "${cat.seoSlug}" (Level ${cat.level})`);
     });
     
-    // Specifically check for agricultural categories
-    const agCategories = await Category.find({
-      name: { $regex: 'agricultural|farm|livestock', $options: 'i' }
+    // Specifically check for fashion categories
+    const fashionCategories = await Category.find({
+      name: { $regex: 'fashion|men|women|children|trousers|shirts', $options: 'i' }
     });
     
-    console.log('🚜 AGRICULTURAL-RELATED CATEGORIES:');
-    agCategories.forEach(cat => {
-      console.log(`   - "${cat.name}" → seo.slug: "${cat.seo?.slug}"`);
+    console.log('👗 FASHION-RELATED CATEGORIES:');
+    fashionCategories.forEach(cat => {
+      console.log(`   - "${cat.name}" → seo.slug: "${cat.seo?.slug}" (Level ${cat.level})`);
     });
     
     res.json({
       allCategories: categoryInfo,
-      agriculturalCategories: agCategories.map(cat => ({
+      fashionCategories: fashionCategories.map(cat => ({
         name: cat.name,
         seoSlug: cat.seo?.slug,
         level: cat.level,
@@ -378,71 +501,20 @@ router.get('/debug/category-slugs', async (req, res) => {
   }
 });
 
-// Test agricultural category specifically
-router.get('/test/agricultural', async (req, res) => {
-  try {
-    console.log('🧪 TESTING AGRICULTURAL CATEGORY FILTERING...');
-    
-    // Test different ways to find the category
-    const tests = [
-      { method: 'By SEO slug', query: { 'seo.slug': 'agricultural-produce' } },
-      { method: 'By name exact', query: { name: 'Agricultural Produce' } },
-      { method: 'By name partial', query: { name: { $regex: 'agricultural', $options: 'i' } } },
-      { method: 'By name farm', query: { name: { $regex: 'farm', $options: 'i' } } }
-    ];
-    
-    for (const test of tests) {
-      const result = await Category.findOne(test.query);
-      console.log(`🔍 ${test.method}:`, result ? `FOUND - ${result.name}` : 'NOT FOUND');
-    }
-    
-    // Test the actual hierarchy building
-    const agCategory = await Category.findOne({ name: 'Agricultural Produce' });
-    if (agCategory) {
-      console.log('🚜 Found Agricultural Produce category, building hierarchy...');
-      const hierarchyIds = await getCategoryHierarchyIds(agCategory._id);
-      
-      const products = await Product.find({ category: { $in: hierarchyIds } })
-        .populate('category', 'name level');
-      
-      console.log(`📦 Found ${products.length} products in agricultural hierarchy`);
-      products.forEach(p => {
-        console.log(`   - ${p.name} → ${p.category?.name} (Level ${p.category?.level})`);
-      });
-      
-      res.json({
-        agriculturalCategory: agCategory,
-        hierarchyIds,
-        products: products.map(p => ({
-          name: p.name,
-          category: p.category?.name,
-          categoryLevel: p.category?.level
-        }))
-      });
-    } else {
-      res.json({ error: 'Agricultural Produce category not found' });
-    }
-    
-  } catch (error) {
-    console.error('Test error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Verify the fix is working
 router.get('/verify-fix', async (req, res) => {
   try {
-    // Test agricultural category
-    const agCategory = await Category.findOne({ 
-      'seo.slug': 'agricultural-produce' 
+    // Test fashion category
+    const fashionCategory = await Category.findOne({ 
+      'seo.slug': 'fashion' 
     });
     
-    if (!agCategory) {
-      return res.json({ error: 'Agricultural category not found by seo.slug' });
+    if (!fashionCategory) {
+      return res.json({ error: 'Fashion category not found by seo.slug' });
     }
     
     // Build hierarchy
-    const hierarchyIds = await getCategoryHierarchyIds(agCategory._id);
+    const hierarchyIds = await getCategoryHierarchyIds(fashionCategory._id);
     
     // Find products
     const products = await Product.find({ 
@@ -451,23 +523,65 @@ router.get('/verify-fix', async (req, res) => {
     
     res.json({
       success: true,
-      agriculturalCategory: {
-        name: agCategory.name,
-        seoSlug: agCategory.seo.slug,
-        _id: agCategory._id
+      fashionCategory: {
+        name: fashionCategory.name,
+        seoSlug: fashionCategory.seo.slug,
+        _id: fashionCategory._id
       },
       hierarchyIds: hierarchyIds,
       productsFound: products.length,
       products: products.map(p => ({
         name: p.name,
         category: p.category?.name,
-        categoryId: p.category?._id
+        categoryLevel: p.category?.level
       }))
     });
     
   } catch (error) {
     console.error('Verification error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+// GET /api/products/:id - Get single product by ID
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('🔍 Fetching single product by ID:', id);
+    
+    // Validate ID format
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ message: 'Product ID is required' });
+    }
+
+    // Find product by ID and populate category details
+    const product = await Product.findById(id)
+      .populate("category", "name slug level parent description seo");
+    
+    if (!product) {
+      console.log('❌ Product not found with ID:', id);
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Check if product is active
+    if (product.status !== 'active') {
+      console.log('❌ Product is not active:', id);
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    console.log('✅ Found product:', product.name);
+    
+    res.json(product);
+    
+  } catch (error) {
+    console.error('❌ Error fetching product:', error);
+    
+    // Handle invalid ID format
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: 'Invalid product ID format' });
+    }
+    
+    res.status(500).json({ message: 'Error fetching product', error: error.message });
   }
 });
 

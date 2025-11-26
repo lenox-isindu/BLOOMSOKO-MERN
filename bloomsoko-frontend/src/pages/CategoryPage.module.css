@@ -464,3 +464,80 @@
         font-size: 1.75rem;
     }
 }
+/* Fashion-specific filters */
+.fashionFilters {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+}
+
+.genderFilters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.genderBtn {
+    padding: 8px 16px;
+    border: 2px solid;
+    border-radius: 25px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.genderBtn.active {
+    background: var(--category-color, #FF6B8B);
+    color: white;
+}
+
+.itemFilters {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.filterLabel {
+    font-weight: 600;
+    color: #666;
+    margin-right: 5px;
+}
+
+.itemBtn {
+    padding: 6px 12px;
+    border: 1px solid;
+    border-radius: 20px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.itemBtn.active {
+    background: var(--category-color, #FF6B8B);
+    color: white;
+}
+
+/* Active filter pills */
+.activeFilterPills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.filterPill {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filterPill:hover {
+    opacity: 0.8;
+    transform: scale(1.05);
+}
