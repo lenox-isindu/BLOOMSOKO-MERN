@@ -19,6 +19,44 @@ const Orders = () => {
   // Auto-refresh interval (10 seconds for pending orders)
   const REFRESH_INTERVAL = 10000;
 
+  // Function to remove duplicates
+  const removeDuplicateOrders = (orders) => {
+    const uniqueOrders = [];
+    const orderNumbers = new Set();
+    
+    // Sort by creation date (newest first) to keep the most recent version
+    const sortedOrders = [...orders].sort((a, b) => 
+      new Date(b.createdAt) - new Date(a.createdAt)
+    );
+    
+    sortedOrders.forEach(order => {
+      if (!orderNumbers.has(order.orderNumber)) {
+        orderNumbers.add(order.orderNumber);
+        uniqueOrders.push(order);
+      } else {
+        console.log(`🔄 Removing duplicate order: ${order.orderNumber}`);
+      }
+    });
+    
+    return uniqueOrders;
+  };
+
+  // Cleanup function for completed orders
+  const cleanupCompletedOrders = useCallback((ordersList) => {
+    return ordersList.filter(order => {
+      // Keep the order if it's either:
+      // 1. Not a pending order, OR
+      // 2. Is a pending order but was created recently (last 1 hour)
+      if (order.status !== 'pending') return true;
+      
+      const orderAge = Date.now() - new Date(order.createdAt).getTime();
+      const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+      
+      // Remove pending orders older than 1 hour that should have been completed
+      return orderAge < oneHour;
+    });
+  }, []);
+
   // Memoized fetch function to prevent unnecessary re-renders
   const fetchOrders = useCallback(async (silent = false) => {
     if (!isAuthenticated) {
@@ -47,16 +85,23 @@ const Orders = () => {
         const data = await response.json();
         console.log('📦 Orders data received:', data);
         
+        let ordersData = [];
+        
         // Handle different response formats
         if (data.success && data.data) {
-          setOrders(data.data);
+          ordersData = data.data;
         } else if (Array.isArray(data)) {
-          setOrders(data);
+          ordersData = data;
         } else if (data.orders) {
-          setOrders(data.orders);
-        } else {
-          setOrders([]);
+          ordersData = data.orders;
         }
+        
+        // REMOVE DUPLICATES and clean up before setting state
+        const uniqueOrders = removeDuplicateOrders(ordersData);
+        const cleanedOrders = cleanupCompletedOrders(uniqueOrders);
+        console.log(`🔄 Filtered ${ordersData.length} orders to ${cleanedOrders.length} unique orders`);
+        
+        setOrders(cleanedOrders);
       } else if (response.status === 401) {
         toast.error('Please login again to view orders');
         navigate('/login');
@@ -72,7 +117,7 @@ const Orders = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, cleanupCompletedOrders]);
 
   // Check for payment success from navigation state or URL params
   useEffect(() => {
@@ -90,6 +135,28 @@ const Orders = () => {
       fetchOrders();
     }
   }, [location, fetchOrders]);
+
+  // Force refresh detection
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const forceRefresh = localStorage.getItem('force-refresh-orders');
+      if (forceRefresh) {
+        console.log('🔄 Force refreshing orders...');
+        fetchOrders();
+        localStorage.removeItem('force-refresh-orders');
+      }
+    };
+
+    // Listen for storage events (from other tabs)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Check on component mount
+    handleStorageChange();
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [fetchOrders]);
 
   // Initial fetch and auto-refresh setup
   useEffect(() => {
@@ -161,6 +228,7 @@ const Orders = () => {
       const paymentData = {
         amount: order.totalAmount * 100,
         email: order.recipient?.email || user?.email,
+        orderId: order._id, // Send existing order ID
         metadata: {
           recipient: {
             firstName: order.recipient?.firstName || user?.firstName,
@@ -180,7 +248,7 @@ const Orders = () => {
         }
       };
 
-      console.log('💰 Processing payment for order:', order.orderNumber);
+      console.log('💰 Processing payment for EXISTING order:', order.orderNumber);
 
       const response = await fetch(
         `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/paystack/initialize`,
@@ -194,27 +262,22 @@ const Orders = () => {
         }
       );
 
-      if (response.ok) {
-        const paymentResponse = await response.json();
-        if (paymentResponse.success) {
-          // Store order ID for status checking after payment
-          localStorage.setItem('pending-payment-order', order._id);
-          
-          // Immediately update the order status to show it's being processed
-          setOrders(prevOrders => 
-            prevOrders.map(o => 
-              o._id === order._id ? { ...o, status: 'processing' } : o
-            )
-          );
-          
-          console.log('✅ Payment initialized, redirecting to Paystack...');
-          // Redirect to Paystack
-          window.location.href = paymentResponse.data.authorization_url;
-        } else {
-          throw new Error(paymentResponse.message || 'Payment initialization failed');
-        }
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        console.error('Server error response:', responseData);
+        throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      if (responseData.success) {
+        // Store order ID for status checking after payment
+        localStorage.setItem('pending-payment-order', order._id);
+        
+        console.log('✅ Payment initialized, redirecting to Paystack...');
+        // Redirect to Paystack
+        window.location.href = responseData.data.authorization_url;
       } else {
-        throw new Error('Failed to initialize payment');
+        throw new Error(responseData.message || 'Payment initialization failed');
       }
     } catch (error) {
       console.error('Payment error:', error);
@@ -277,7 +340,6 @@ const Orders = () => {
       'pending': '#FFA000',
       'completed': '#2E7D32',
       'cancelled': '#F44336',
-      'processing': '#2196F3',
       'ready_for_pickup': '#9C27B0'
     };
     return colors[status] || '#666';
@@ -288,7 +350,6 @@ const Orders = () => {
       'pending': 'Awaiting Payment',
       'completed': 'Order Confirmed',
       'cancelled': 'Cancelled',
-      'processing': 'Processing Payment',
       'ready_for_pickup': 'Ready for Pickup'
     };
     return texts[status] || status;
@@ -437,7 +498,6 @@ const Orders = () => {
         {[
           { value: 'all', label: 'All Orders' },
           { value: 'pending', label: 'Pending Payment' },
-          { value: 'processing', label: 'Processing' },
           { value: 'completed', label: 'Confirmed' },
           { value: 'cancelled', label: 'Cancelled' }
         ].map(({ value, label }) => (
@@ -768,47 +828,173 @@ const OrderCard = ({
             </p>
           </div>
         )}
-
-        {/* Processing Payment Status */}
-        {order.status === 'processing' && (
-          <div style={{
-            background: '#E3F2FD',
-            padding: '0.75rem',
-            borderRadius: '4px',
-            marginTop: '1rem',
-            borderLeft: '3px solid #2196F3'
-          }}>
-            <p style={{ margin: 0, color: '#1565C0', fontSize: '0.9rem', fontWeight: '600' }}>
-              🔄 Payment is being processed. Please wait...
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Expanded Order Details */}
       {selectedOrder?._id === order._id && (
-        <ExpandedOrderDetails 
-          order={order} 
-          onPayNow={onPayNow}
-          processingPayment={processingPayment}
-          getStatusColor={getStatusColor}
-        />
-      )}
-    </div>
-  );
-};
+        <div style={{
+          padding: '1.5rem',
+          background: '#f8f9fa',
+          borderTop: '1px solid #e0e0e0'
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+            <div>
+              <h4 style={{ color: '#2E7D32', marginBottom: '1rem', fontSize: '1rem' }}>Order Items</h4>
+              <div style={{ background: 'white', borderRadius: '6px', padding: '1rem' }}>
+                {(order.items || []).map((item, index) => (
+                  <div key={index} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.75rem 0',
+                    borderBottom: '1px solid #f0f0f0'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        width: '50px',
+                        height: '50px',
+                        background: '#f5f5f5',
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                      }}>
+                        {item.image || item.product?.featuredImage ? (
+                          <img 
+                            src={item.image || item.product?.featuredImage} 
+                            alt={item.name || item.product?.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#999',
+                            fontSize: '0.8rem'
+                          }}>
+                            No Image
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <p style={{ margin: '0 0 0.25rem 0', fontWeight: '600' }}>
+                          {item.name || item.product?.name || 'Product'}
+                        </p>
+                        <p style={{ margin: 0, color: '#666', fontSize: '0.8rem' }}>
+                          Qty: {item.quantity}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ margin: '0 0 0.25rem 0', fontWeight: '600', color: '#2E7D32' }}>
+                        KSh {(item.price || item.product?.price || 0).toLocaleString()}
+                      </p>
+                      <p style={{ margin: 0, color: '#666', fontSize: '0.8rem' }}>
+                        Total: KSh {((item.price || item.product?.price || 0) * item.quantity).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '1rem 0 0 0',
+                  borderTop: '2px solid #2E7D32',
+                  fontWeight: '700'
+                }}>
+                  <span>Total Amount</span>
+                  <span style={{ color: '#2E7D32', fontSize: '1.1rem' }}>
+                    KSh {order.totalAmount?.toLocaleString() || '0'}
+                  </span>
+                </div>
 
-// Expanded Order Details Component (keep your existing one)
-const ExpandedOrderDetails = ({ order, onPayNow, processingPayment, getStatusColor }) => {
-  // ... your existing ExpandedOrderDetails component code
-  return (
-    <div style={{
-      padding: '1.5rem',
-      background: '#f8f9fa',
-      borderTop: '1px solid #e0e0e0'
-    }}>
-      {/* Your existing expanded order details JSX */}
-      <p>Order details expanded view...</p>
+                {/* Pay Now Button in Expanded View */}
+                {order.status === 'pending' && (
+                  <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                    <button
+                      onClick={() => onPayNow(order)}
+                      disabled={processingPayment === order._id}
+                      style={{
+                        background: '#FFC107',
+                        color: '#000',
+                        border: 'none',
+                        padding: '0.75rem 2rem',
+                        borderRadius: '6px',
+                        cursor: processingPayment === order._id ? 'not-allowed' : 'pointer',
+                        fontWeight: '600',
+                        fontSize: '1rem',
+                        width: '100%',
+                        opacity: processingPayment === order._id ? 0.7 : 1
+                      }}
+                    >
+                      {processingPayment === order._id ? 'Processing Payment...' : 'Pay Now - KSh ' + (order.totalAmount?.toLocaleString() || '0')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{ color: '#2E7D32', marginBottom: '1rem', fontSize: '1rem' }}>Pickup Information</h4>
+              <div style={{ background: 'white', borderRadius: '6px', padding: '1rem' }}>
+                <div style={{ marginBottom: '1rem' }}>
+                  <strong>Station:</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#666' }}>{order.pickup?.station || 'Not specified'}</p>
+                </div>
+                
+                {order.pickup?.stationDetails?.address && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong>Address:</strong>
+                    <p style={{ margin: '0.25rem 0 0 0', color: '#666' }}>{order.pickup.stationDetails.address}</p>
+                  </div>
+                )}
+                
+                {order.pickup?.stationDetails?.contact && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong>Contact:</strong>
+                    <p style={{ margin: '0.25rem 0 0 0', color: '#666' }}>{order.pickup.stationDetails.contact}</p>
+                  </div>
+                )}
+                
+                {order.pickup?.stationDetails?.hours && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong>Operating Hours:</strong>
+                    <p style={{ margin: '0.25rem 0 0 0', color: '#666' }}>{order.pickup.stationDetails.hours}</p>
+                  </div>
+                )}
+                
+                {order.specialInstructions && (
+                  <div>
+                    <strong>Special Instructions:</strong>
+                    <p style={{ margin: '0.25rem 0 0 0', color: '#666' }}>{order.specialInstructions}</p>
+                  </div>
+                )}
+
+                {/* Important Notes */}
+                <div style={{
+                  background: '#FFF3E0',
+                  padding: '0.75rem',
+                  borderRadius: '4px',
+                  marginTop: '1rem',
+                  borderLeft: '3px solid #FFA000'
+                }}>
+                  <p style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#E65100' }}>
+                    Important:
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: '1rem', fontSize: '0.8rem', color: '#666' }}>
+                    <li>Carry your National ID for verification</li>
+                    <li>Pay shipping fee at the station</li>
+                    <li>Provide order number: <strong>{order.orderNumber || order._id}</strong></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
