@@ -1,5 +1,7 @@
 // controllers/orderController.js
 import Order from '../models/Order.js';
+import Cart from '../models/Cart.js';
+import { sendEmail } from './paystackController.js';
 
 // Get all orders (for admin)
 export const getAllOrders = async (req, res) => {
@@ -42,8 +44,19 @@ export const getAllOrders = async (req, res) => {
 // Get user's orders
 export const getUserOrders = async (req, res) => {
   try {
-    const userId = req.headers.userid;
+    // Use authenticated user ID from req.user (set by auth middleware)
+    const userId = req.user?.id || req.user?._id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+
     const { page = 1, limit = 10 } = req.query;
+
+    console.log('🔍 Fetching orders for user:', userId);
 
     const orders = await Order.find({ user: userId })
       .populate('items.product')
@@ -52,6 +65,8 @@ export const getUserOrders = async (req, res) => {
       .skip((page - 1) * limit);
 
     const total = await Order.countDocuments({ user: userId });
+
+    console.log(`📦 Found ${orders.length} orders for user ${userId}`);
 
     res.json({
       success: true,
@@ -77,7 +92,14 @@ export const getUserOrders = async (req, res) => {
 export const getOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.headers.userid;
+    const userId = req.user?.id || req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
 
     const order = await Order.findOne({
       $or: [
@@ -158,12 +180,20 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-// In orderController.js - Add cancel order function
+// Cancel order
 export const cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id || req.user?._id;
 
-    const order = await Order.findById(id);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+
+    const order = await Order.findOne({ _id: id, user: userId });
     
     if (!order) {
       return res.status(404).json({
@@ -198,6 +228,7 @@ export const cancelOrder = async (req, res) => {
     });
   }
 };
+
 // Get order statistics (admin)
 export const getOrderStats = async (req, res) => {
   try {

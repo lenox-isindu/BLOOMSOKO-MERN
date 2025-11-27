@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext'; // Import auth context
 
 const Checkout = () => {
   const { cart, getCartTotal, clearCart } = useCart();
+  const { user, isAuthenticated } = useAuth(); // Get user and auth status
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -192,10 +194,29 @@ const Checkout = () => {
   const subtotal = getCartTotal();
 
   useEffect(() => {
+    // Redirect if not authenticated
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    // Redirect if cart is empty
     if (cartItems.length === 0) {
       navigate('/cart');
+      return;
     }
-  }, [cartItems, navigate]);
+
+    // Pre-fill form with user data if available
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        recipientFirstName: user.firstName || '',
+        recipientLastName: user.lastName || '',
+        recipientEmail: user.email || '',
+        recipientPhone: user.phone || ''
+      }));
+    }
+  }, [isAuthenticated, cartItems, user, navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -222,91 +243,105 @@ const Checkout = () => {
     setSelectedStation(null);
   };
 
-  // In Checkout.jsx - Update the handleCheckout function
-// In Checkout.jsx - Update the handleCheckout function
-const handleCheckout = async () => {
-  setLoading(true);
-  
-  try {
-    const getUserId = () => {
-      let userId = localStorage.getItem('bloomsoko-user-id');
-      if (!userId) {
-        userId = `demo-user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('bloomsoko-user-id', userId);
+  // UPDATED: Using real authentication token
+  const handleCheckout = async () => {
+    setLoading(true);
+    
+    try {
+      // Check if user is authenticated
+      if (!isAuthenticated || !user) {
+        throw new Error('Please login to complete your order');
       }
-      return userId;
-    };
 
-    const userId = getUserId();
-    
-    // Debug: Check form data
-    console.log('Form Data:', formData);
-    console.log('Recipient Email:', formData.recipientEmail);
-
-    // Validate required fields
-    if (!formData.recipientEmail) {
-      throw new Error('Email is required. Please fill in the email field.');
-    }
-
-    const requestData = {
-      amount: subtotal * 100,
-      email: formData.recipientEmail, // This should match the form field name
-      metadata: {
-        recipient: {
-          firstName: formData.recipientFirstName,
-          lastName: formData.recipientLastName,
-          email: formData.recipientEmail, // Make sure this matches the form field
-          phone: formData.recipientPhone,
-          idNumber: formData.recipientIdNumber
-        },
-        pickup: {
-          option: formData.pickupOption,
-          station: pickupStations[formData.pickupOption]?.name,
-          county: formData.pickupCounty,
-          stationDetails: selectedStation
-        },
-        items: cartItems,
-        specialInstructions: formData.specialInstructions
+      // Get authentication token
+      const token = localStorage.getItem('bloomsoko-token');
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
       }
-    };
 
-    console.log('Sending to backend:', JSON.stringify(requestData, null, 2));
+      // Debug: Check form data
+      console.log('Form Data:', formData);
+      console.log('User:', user);
+      console.log('Token exists:', !!token);
 
-    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/paystack/initialize`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'userid': userId
-      },
-      body: JSON.stringify(requestData)
-    });
+      // Validate required fields
+      if (!formData.recipientEmail) {
+        throw new Error('Email is required. Please fill in the email field.');
+      }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Server response:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const requestData = {
+        amount: subtotal * 100,
+        email: formData.recipientEmail,
+        metadata: {
+          recipient: {
+            firstName: formData.recipientFirstName,
+            lastName: formData.recipientLastName,
+            email: formData.recipientEmail,
+            phone: formData.recipientPhone,
+            idNumber: formData.recipientIdNumber
+          },
+          pickup: {
+            option: formData.pickupOption,
+            station: pickupStations[formData.pickupOption]?.name,
+            county: formData.pickupCounty,
+            stationDetails: selectedStation
+          },
+          items: cartItems,
+          specialInstructions: formData.specialInstructions
+        }
+      };
+
+      console.log('Sending to backend:', JSON.stringify(requestData, null, 2));
+
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/paystack/initialize`, 
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` // Using authentication token
+          },
+          body: JSON.stringify(requestData)
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const paymentData = await response.json();
+      
+      if (paymentData.success) {
+        window.location.href = paymentData.data.authorization_url;
+      } else {
+        throw new Error(paymentData.message || 'Payment initialization failed');
+      }
+      
+    } catch (error) {
+      console.error('Payment error:', error);
+      setLoading(false);
+      alert(`Payment failed: ${error.message}`);
     }
+  };
 
-    const paymentData = await response.json();
-    
-    if (paymentData.success) {
-      window.location.href = paymentData.data.authorization_url;
-    } else {
-      throw new Error(paymentData.message || 'Payment initialization failed');
-    }
-    
-  } catch (error) {
-    console.error('Payment error:', error);
-    setLoading(false);
-    alert(`Payment failed: ${error.message}`);
-  }
-};
   const handleTransportArrangement = () => {
     const subject = 'Transport Arrangement Request - Home Delivery';
     const body = `Hello Bloomsoko,\n\nI would like to arrange home delivery instead of pickup.\n\nRecipient Details:\n- Name: ${formData.recipientFirstName} ${formData.recipientLastName}\n- Phone: ${formData.recipientPhone}\n- Email: ${formData.recipientEmail}\n- ID: ${formData.recipientIdNumber}\n\nOrder Details:\n- Items: ${cartItems.length}\n- Total: KSh ${subtotal.toLocaleString()}\n- Preferred Delivery County: ${formData.pickupCounty || 'Not specified'}\n\nPlease contact me to discuss home delivery options and pricing.\n\nBest regards,\n${formData.recipientFirstName} ${formData.recipientLastName}`;
     
     window.location.href = `mailto:transport@bloomsoko.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
+
+  // Show loading or redirect if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <h2>Please login to checkout</h2>
+        <Link to="/login">Login Now</Link>
+      </div>
+    );
+  }
 
   if (cartItems.length === 0) {
     return (
@@ -334,6 +369,16 @@ const handleCheckout = async () => {
             <Link to="/">Home</Link> &gt; 
             <Link to="/cart">Cart</Link> &gt; 
             <span>Checkout</span>
+          </div>
+          {/* Show user info */}
+          <div style={{ 
+            background: '#E8F5E8', 
+            padding: '0.75rem', 
+            borderRadius: '6px', 
+            marginTop: '0.5rem',
+            fontSize: '0.9rem'
+          }}>
+            ✅ Logged in as: {user?.firstName} {user?.lastName} ({user?.email})
           </div>
         </div>
 

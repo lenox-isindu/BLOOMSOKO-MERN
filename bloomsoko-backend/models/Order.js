@@ -1,4 +1,3 @@
-// models/Order.js
 import mongoose from 'mongoose';
 
 const orderItemSchema = new mongoose.Schema({
@@ -93,7 +92,8 @@ const orderSchema = new mongoose.Schema({
   },
   user: {
     type: mongoose.Schema.Types.Mixed,
-    required: true
+    required: true,
+    index: true
   },
   recipient: recipientSchema,
   pickup: pickupSchema,
@@ -116,7 +116,7 @@ const orderSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
- status: {
+  status: {
     type: String,
     enum: ['pending', 'completed', 'cancelled'],
     default: 'pending'
@@ -146,9 +146,6 @@ const orderSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
-// Remove the pre-save hook and use default value instead
-// The default function will generate orderNumber automatically
 
 // Virtual for full recipient name
 orderSchema.virtual('recipient.fullName').get(function() {

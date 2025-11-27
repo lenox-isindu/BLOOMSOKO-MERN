@@ -10,7 +10,16 @@ const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 export const initializePayment = async (req, res) => {
   try {
     const { amount, email, metadata } = req.body;
-    const userId = req.headers.userid || 'demo-user';
+    
+    // Use authenticated user ID
+    const userId = req.user?.id || req.user?._id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
 
     if (!amount || !email) {
       return res.status(400).json({
@@ -19,7 +28,19 @@ export const initializePayment = async (req, res) => {
       });
     }
 
-    // Create order in pending state
+    // Validate Paystack secret key
+    if (!PAYSTACK_SECRET_KEY) {
+      console.error('❌ Paystack secret key not configured');
+      return res.status(500).json({
+        success: false,
+        message: 'Payment configuration error'
+      });
+    }
+
+    console.log('💰 Initializing payment for user:', userId);
+    console.log('💰 Payment amount:', amount);
+
+    // Create order with authenticated user ID
     const orderData = {
       user: userId,
       recipient: {
@@ -50,37 +71,42 @@ export const initializePayment = async (req, res) => {
       paymentStatus: 'pending'
     };
 
-    console.log('Creating order with items:', orderData.items);
+    console.log('📦 Creating order with items:', orderData.items);
 
     const order = new Order(orderData);
     await order.save();
 
-    console.log('Order created successfully:', order.orderNumber);
+    console.log('✅ Order created successfully:', order.orderNumber);
 
+    // Initialize Paystack payment
+    const paymentPayload = {
+      email,
+      amount: Math.round(amount), // Amount in kobo
+      reference: order.orderNumber,
+      callback_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment-callback`,
+      metadata: {
+        orderId: order._id.toString(),
+        userId,
+        custom_fields: [
+          {
+            display_name: "Order Number",
+            variable_name: "order_number",
+            value: order.orderNumber
+          },
+          {
+            display_name: "Recipient Name",
+            variable_name: "recipient_name",
+            value: metadata.recipient.firstName + ' ' + metadata.recipient.lastName
+          }
+        ]
+      }
+    };
+
+    console.log('🔗 Calling Paystack API...');
+    
     const response = await axios.post(
       `${PAYSTACK_BASE_URL}/transaction/initialize`,
-      {
-        email,
-        amount: Math.round(amount),
-        reference: order.orderNumber,
-        callback_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment-callback`,
-        metadata: {
-          orderId: order._id.toString(),
-          userId,
-          custom_fields: [
-            {
-              display_name: "Order Number",
-              variable_name: "order_number",
-              value: order.orderNumber
-            },
-            {
-              display_name: "Recipient Name",
-              variable_name: "recipient_name",
-              value: metadata.recipient.firstName + ' ' + metadata.recipient.lastName
-            }
-          ]
-        }
-      },
+      paymentPayload,
       {
         headers: {
           Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
@@ -89,6 +115,8 @@ export const initializePayment = async (req, res) => {
       }
     );
 
+    console.log('✅ Paystack response received');
+
     res.json({
       success: true,
       message: 'Payment initialized successfully',
@@ -96,7 +124,14 @@ export const initializePayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Paystack initialization error:', error);
+    console.error('❌ Paystack initialization error:', error);
+    
+    // More detailed error logging
+    if (error.response) {
+      console.error('Paystack API response error:', error.response.data);
+      console.error('Paystack API status:', error.response.status);
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Failed to initialize payment',
@@ -116,6 +151,8 @@ export const verifyPayment = async (req, res) => {
         message: 'Paystack secret key not configured'
       });
     }
+
+    console.log('🔍 Verifying payment for reference:', reference);
 
     // Verify payment with Paystack
     const response = await axios.get(
@@ -213,6 +250,7 @@ export const verifyPayment = async (req, res) => {
     });
   }
 };
+
 // ✅ FIXED EMAIL SERVICE FUNCTIONS
 const createTransport = () => {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
@@ -220,7 +258,6 @@ const createTransport = () => {
     return null;
   }
   
-  // ✅ FIXED HERE
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -230,7 +267,7 @@ const createTransport = () => {
   });
 };
 
-const sendEmail = async (emailData) => {
+export const sendEmail = async (emailData) => {
   try {
     const transporter = createTransport();
     if (!transporter) {
@@ -344,6 +381,7 @@ const generateEmailTemplate = (template, context) => {
 
   return templates[template] || '<p>Email content not available</p>';
 };
+
 // Webhook for Paystack events
 export const paystackWebhook = async (req, res) => {
   try {
@@ -407,8 +445,9 @@ export const paystackWebhook = async (req, res) => {
     console.error('❌ Webhook processing error:', error);
     res.status(500).send('Webhook processing failed');
   }
-}
-// Keep your original template logic and structure unchanged
+};
+
+// Send order confirmation email
 const sendOrderConfirmationEmail = async (order) => {
   try {
     console.log('🔄 Attempting to send email to:', order.recipient.email);
