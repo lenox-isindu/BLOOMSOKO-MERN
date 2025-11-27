@@ -1,4 +1,6 @@
+// context/CartContext.js
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import toast from 'react-hot-toast';
 
 const CartContext = createContext();
 
@@ -56,15 +58,80 @@ export const CartProvider = ({ children }) => {
     const [state, dispatch] = useReducer(cartReducer, initialState);
     const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
-    // Generate a persistent demo user ID
-    const getUserId = () => {
-        let userId = localStorage.getItem('bloomsoko-user-id');
-        if (!userId) {
-            userId = `demo-user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            localStorage.setItem('bloomsoko-user-id', userId);
-        }
-        return userId;
+    // Check if user is authenticated
+    const isAuthenticated = () => {
+        return !!localStorage.getItem('bloomsoko-token');
     };
+
+    // Get the correct user ID (authenticated or guest)
+    const getCurrentUserId = () => {
+        // Priority 1: Authenticated user ID
+        const authUserId = localStorage.getItem('bloomsoko-authenticated-user-id');
+        if (authUserId) {
+            return authUserId;
+        }
+        
+        // Priority 2: Guest user ID
+        let guestUserId = localStorage.getItem('bloomsoko-user-id');
+        if (!guestUserId) {
+            guestUserId = `guest-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem('bloomsoko-user-id', guestUserId);
+        }
+        return guestUserId;
+    };
+
+    // Get auth headers for API calls
+    const getAuthHeaders = () => {
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        
+        const token = localStorage.getItem('bloomsoko-token');
+        const currentUserId = getCurrentUserId();
+        
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        // Always send userid header
+        headers['userid'] = currentUserId;
+        
+        console.log('🛒 Auth headers:', { 
+            hasToken: !!token, 
+            userId: currentUserId,
+            isAuthenticated: !!token
+        });
+        
+        return headers;
+    };
+
+    // Event listeners for cart refresh
+    useEffect(() => {
+        const handleCartMigrated = () => {
+            console.log('🔄 Cart migration detected, refreshing cart...');
+            fetchCart();
+        };
+
+        const handleCartRefresh = () => {
+            console.log('🔄 Manual cart refresh triggered');
+            fetchCart();
+        };
+
+        const handleCartUpdated = () => {
+            console.log('🛒 Cart updated event received');
+            fetchCart();
+        };
+
+        window.addEventListener('cartMigrated', handleCartMigrated);
+        window.addEventListener('cartRefreshNeeded', handleCartRefresh);
+        window.addEventListener('cartUpdated', handleCartUpdated);
+        
+        return () => {
+            window.removeEventListener('cartMigrated', handleCartMigrated);
+            window.removeEventListener('cartRefreshNeeded', handleCartRefresh);
+            window.removeEventListener('cartUpdated', handleCartUpdated);
+        };
+    }, []);
 
     // Load cart from backend on mount
     useEffect(() => {
@@ -74,24 +141,25 @@ export const CartProvider = ({ children }) => {
     const fetchCart = async () => {
         try {
             dispatch({ type: 'SET_LOADING', payload: true });
-            const userId = getUserId();
             
             const response = await fetch(`${API_URL}/cart`, {
-                headers: {
-                    'userid': userId
-                }
+                headers: getAuthHeaders()
             });
             
             if (response.ok) {
                 const cartData = await response.json();
-                console.log('Cart data received:', cartData);
+                console.log('🛒 Cart data received:', cartData);
                 dispatch({ type: 'SET_CART', payload: cartData });
+            } else if (response.status === 401) {
+                // Unauthorized - clear cart
+                console.log('❌ Unauthorized, clearing cart');
+                dispatch({ type: 'SET_CART', payload: { items: [] } });
             } else {
                 console.log('No cart found, creating empty cart');
                 dispatch({ type: 'SET_CART', payload: { items: [] } });
             }
         } catch (error) {
-            console.error('Error fetching cart:', error);
+            console.error('❌ Error fetching cart:', error);
             dispatch({ type: 'SET_ERROR', payload: error.message });
             dispatch({ type: 'SET_CART', payload: { items: [] } });
         }
@@ -99,14 +167,24 @@ export const CartProvider = ({ children }) => {
 
     const addToCart = async (product, quantity = 1, isBooking = false) => {
         try {
-            const userId = getUserId();
-            
+            // Check authentication first
+            if (!isAuthenticated()) {
+                toast.error('Please login to add items to cart');
+                window.location.href = '/login';
+                return;
+            }
+
+            console.log('🛒 Adding to cart:', {
+                productId: product._id,
+                productName: product.name,
+                quantity,
+                isBooking,
+                userId: getCurrentUserId()
+            });
+
             const response = await fetch(`${API_URL}/cart/add`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'userid': userId
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     productId: product._id,
                     quantity,
@@ -114,22 +192,26 @@ export const CartProvider = ({ children }) => {
                 })
             });
 
+            const result = await response.json();
+
             if (response.ok) {
-                const result = await response.json();
-                console.log('Add to cart result:', result);
+                console.log('✅ Add to cart success:', result);
                 
-                // Immediately update local state AND refresh from server for consistency
                 dispatch({ type: 'ADD_TO_CART', payload: result });
+                await fetchCart(); // Refresh cart to get latest state
                 
-                // Force refresh to ensure UI updates immediately
-                await fetchCart();
+                // Emit cart update event for real-time updates
+                window.dispatchEvent(new Event('cartUpdated'));
                 
+                toast.success(isBooking ? 'Product booked successfully!' : 'Product added to cart!');
                 return result;
             } else {
-                throw new Error('Failed to add to cart');
+                console.error('❌ Add to cart failed:', result);
+                throw new Error(result.message || 'Failed to add to cart');
             }
         } catch (error) {
-            console.error('Error adding to cart:', error);
+            console.error('❌ Error adding to cart:', error);
+            toast.error(error.message || 'Failed to add to cart');
             dispatch({ type: 'SET_ERROR', payload: error.message });
             throw error;
         }
@@ -137,123 +219,110 @@ export const CartProvider = ({ children }) => {
 
     const removeFromCart = async (itemId) => {
         try {
-            const userId = getUserId();
-            
             const response = await fetch(`${API_URL}/cart/remove/${itemId}`, {
                 method: 'DELETE',
-                headers: {
-                    'userid': userId
-                }
+                headers: getAuthHeaders()
             });
 
             if (response.ok) {
                 const result = await response.json();
-                console.log('Remove from cart result:', result);
                 dispatch({ type: 'REMOVE_FROM_CART', payload: result });
-                
-                // Force refresh to ensure UI updates immediately
                 await fetchCart();
+                window.dispatchEvent(new Event('cartUpdated'));
             }
         } catch (error) {
-            console.error('Error removing from cart:', error);
+            console.error('❌ Error removing from cart:', error);
             dispatch({ type: 'SET_ERROR', payload: error.message });
         }
     };
 
     const updateQuantity = async (itemId, quantity) => {
         try {
-            const userId = getUserId();
-            
             const response = await fetch(`${API_URL}/cart/update/${itemId}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'userid': userId
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ quantity })
             });
 
             if (response.ok) {
                 const result = await response.json();
-                console.log('Update quantity result:', result);
                 dispatch({ type: 'UPDATE_QUANTITY', payload: result });
-                
-                // Force refresh to ensure UI updates immediately
                 await fetchCart();
+                window.dispatchEvent(new Event('cartUpdated'));
             }
         } catch (error) {
-            console.error('Error updating cart:', error);
+            console.error('❌ Error updating cart:', error);
             dispatch({ type: 'SET_ERROR', payload: error.message });
         }
     };
 
-    // In CartContext.jsx - Update clearCart to be more reliable
-const clearCart = async () => {
-  try {
-    const userId = getUserId();
-    
-    const response = await fetch(`${API_URL}/cart/clear`, {
-      method: 'DELETE',
-      headers: {
-        'userid': userId
-      }
-    });
-
-    if (response.ok) {
-      // Update local state immediately
-      dispatch({ type: 'CLEAR_CART' });
-      console.log('🛒 Cart cleared locally and on server');
-      return true;
-    } else {
-      throw new Error('Failed to clear cart on server');
-    }
-  } catch (error) {
-    console.error('Error clearing cart:', error);
-    // Still clear locally even if server fails
-    dispatch({ type: 'CLEAR_CART' });
-    dispatch({ type: 'SET_ERROR', payload: error.message });
-    return false;
-  }
-};
-    const migrateCart = async (fromUserId, toUserId) => {
+    const clearCart = async () => {
         try {
+            const response = await fetch(`${API_URL}/cart/clear`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+
+            if (response.ok) {
+                dispatch({ type: 'CLEAR_CART' });
+                console.log('🛒 Cart cleared');
+                window.dispatchEvent(new Event('cartUpdated'));
+                return true;
+            } else {
+                throw new Error('Failed to clear cart on server');
+            }
+        } catch (error) {
+            console.error('❌ Error clearing cart:', error);
+            dispatch({ type: 'CLEAR_CART' });
+            dispatch({ type: 'SET_ERROR', payload: error.message });
+            return false;
+        }
+    };
+
+    // Migrate cart from guest to authenticated user
+    const migrateCartToUser = async (authenticatedUserId) => {
+        if (!authenticatedUserId) return;
+        
+        const guestUserId = localStorage.getItem('bloomsoko-user-id');
+        if (!guestUserId) return;
+        
+        try {
+            const token = localStorage.getItem('bloomsoko-token');
             const response = await fetch(`${API_URL}/cart/migrate`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ fromUserId, toUserId })
+                body: JSON.stringify({ 
+                    fromUserId: guestUserId, 
+                    toUserId: authenticatedUserId 
+                })
             });
 
             if (response.ok) {
                 const result = await response.json();
+                localStorage.removeItem('bloomsoko-user-id'); // Remove guest ID after migration
                 dispatch({ type: 'SET_CART', payload: result });
-                return result;
+                console.log('🔄 Cart migrated to authenticated user');
+                window.dispatchEvent(new Event('cartUpdated'));
+                return true;
             }
         } catch (error) {
-            console.error('Error migrating cart:', error);
-            dispatch({ type: 'SET_ERROR', payload: error.message });
+            console.error('❌ Error migrating cart:', error);
         }
+        return false;
     };
 
-    // Force immediate cart refresh
-    const forceRefreshCart = async () => {
-        await fetchCart();
-    };
-
-    // SAFE getCartCount - always handles undefined/empty arrays
     const getCartCount = () => {
         if (!state.items || !Array.isArray(state.items)) {
-            console.warn('Cart items is not an array:', state.items);
             return 0;
         }
         return state.items.reduce((total, item) => total + (item.quantity || 0), 0);
     };
 
-    // SAFE getCartTotal - always handles undefined/empty arrays
     const getCartTotal = () => {
         if (!state.items || !Array.isArray(state.items)) {
-            console.warn('Cart items is not an array:', state.items);
             return 0;
         }
         return state.items.reduce((total, item) => {
@@ -263,20 +332,33 @@ const clearCart = async () => {
         }, 0);
     };
 
+    // Debug logging
+    useEffect(() => {
+        console.log('🔍 CART CONTEXT DEBUG:', {
+            hasToken: !!localStorage.getItem('bloomsoko-token'),
+            authUserId: localStorage.getItem('bloomsoko-authenticated-user-id'),
+            guestUserId: localStorage.getItem('bloomsoko-user-id'),
+            cartItems: state.items?.length || 0,
+            cartCount: getCartCount(),
+            loading: state.loading
+        });
+    }, [state.items, state.loading, getCartCount]);
+
     return (
         <CartContext.Provider value={{
-            cart: state.items || [], // Always return array
+            cart: state.items || [],
             loading: state.loading,
             error: state.error,
             addToCart,
             removeFromCart,
             updateQuantity,
             clearCart,
-            migrateCart,
+            migrateCartToUser,
             getCartCount,
             getCartTotal,
             refreshCart: fetchCart,
-            forceRefreshCart // New function for immediate refresh
+            forceRefreshCart: fetchCart,
+            isAuthenticated: isAuthenticated()
         }}>
             {children}
         </CartContext.Provider>

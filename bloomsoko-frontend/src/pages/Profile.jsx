@@ -1,9 +1,11 @@
 // pages/Profile.jsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const Profile = () => {
+  const { user, updateProfile, logout } = useAuth();
   const [profile, setProfile] = useState({
     firstName: '',
     lastName: '',
@@ -17,49 +19,19 @@ const Profile = () => {
   const [profileLoading, setProfileLoading] = useState(true);
   const navigate = useNavigate();
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-
-  // Check if user is authenticated
+  // Initialize profile with user data
   useEffect(() => {
-    const token = localStorage.getItem('bloomsoko-token');
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-    fetchUserProfile();
-  }, [navigate]);
-
-  const fetchUserProfile = async () => {
-    try {
-      const token = localStorage.getItem('bloomsoko-token');
-      const response = await fetch(`${API_URL}/auth/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        const user = data.data.user;
-        setProfile(prev => ({
-          ...prev,
-          firstName: user.firstName || '',
-          lastName: user.lastName || '',
-          email: user.email || '',
-          phone: user.phone || ''
-        }));
-      } else {
-        toast.error('Failed to load profile');
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      toast.error('Error loading profile');
-    } finally {
+    if (user) {
+      setProfile(prev => ({
+        ...prev,
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        email: user.email || '',
+        phone: user.phone || ''
+      }));
       setProfileLoading(false);
     }
-  };
+  }, [user]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -74,35 +46,16 @@ const Profile = () => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('bloomsoko-token');
-      const response = await fetch(`${API_URL}/auth/profile`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          phone: profile.phone
-        })
+      const result = await updateProfile({
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        phone: profile.phone
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        // Update localStorage with new data
-        const updatedUser = {
-          ...JSON.parse(localStorage.getItem('bloomsoko-user') || '{}'),
-          firstName: data.data.user.firstName,
-          lastName: data.data.user.lastName,
-          phone: data.data.user.phone
-        };
-        
-        localStorage.setItem('bloomsoko-user', JSON.stringify(updatedUser));
+      if (result.success) {
         toast.success('Profile updated successfully!');
       } else {
-        toast.error(data.message || 'Failed to update profile');
+        toast.error(result.error || 'Failed to update profile');
       }
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -129,7 +82,9 @@ const Profile = () => {
         return;
       }
 
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
       const token = localStorage.getItem('bloomsoko-token');
+      
       const response = await fetch(`${API_URL}/auth/change-password`, {
         method: 'PUT',
         headers: {
@@ -166,17 +121,9 @@ const Profile = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bloomsoko-token');
-    localStorage.removeItem('bloomsoko-user');
+    logout();
     toast.success('Logged out successfully!');
-    navigate('/');
   };
-
-  const getUser = () => {
-    return JSON.parse(localStorage.getItem('bloomsoko-user') || '{}');
-  };
-
-  const user = getUser();
 
   if (profileLoading) {
     return (
@@ -297,7 +244,6 @@ const Profile = () => {
                     type="email"
                     name="email"
                     value={profile.email}
-                    onChange={handleInputChange}
                     style={{
                       width: '100%',
                       padding: '0.75rem 1rem',
@@ -307,7 +253,6 @@ const Profile = () => {
                       backgroundColor: '#f5f5f5'
                     }}
                     placeholder="Enter your email"
-                    required
                     disabled
                   />
                   <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
@@ -528,10 +473,10 @@ const Profile = () => {
                   fontSize: '2rem',
                   margin: '0 auto 1rem'
                 }}>
-                  {profile.firstName?.charAt(0)?.toUpperCase() || 'U'}
+                  {user?.firstName?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
                 <h4 style={{ marginBottom: '0.5rem', color: '#333' }}>
-                  {profile.firstName} {profile.lastName}
+                  {user?.firstName} {user?.lastName}
                 </h4>
                 <p style={{ color: '#666', margin: 0 }}>
                   Customer
@@ -540,16 +485,16 @@ const Profile = () => {
 
               <div style={{ display: 'grid', gap: '1rem' }}>
                 <div>
-                  <strong>Account ID:</strong> {user.id || 'CUST001'}
+                  <strong>Account ID:</strong> {user?._id || 'CUST001'}
                 </div>
                 <div>
                   <strong>Role:</strong> Customer
                 </div>
                 <div>
-                  <strong>Last Login:</strong> {new Date().toLocaleDateString()}
+                  <strong>Last Login:</strong> {user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Recently'}
                 </div>
                 <div>
-                  <strong>Email:</strong> {profile.email}
+                  <strong>Email:</strong> {user?.email}
                 </div>
               </div>
 
@@ -558,10 +503,10 @@ const Profile = () => {
                   <strong>Account Status:</strong> Active
                 </div>
                 <div>
-                  <strong>Phone:</strong> {profile.phone || 'Not set'}
+                  <strong>Phone:</strong> {user?.phone || 'Not set'}
                 </div>
                 <div>
-                  <strong>Member Since:</strong> {new Date().getFullYear()}
+                  <strong>Member Since:</strong> {user?.createdAt ? new Date(user.createdAt).getFullYear() : new Date().getFullYear()}
                 </div>
                 <div>
                   <strong>Orders:</strong> 0

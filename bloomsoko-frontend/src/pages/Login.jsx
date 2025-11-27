@@ -1,61 +1,37 @@
-// pages/Login.jsx
+// src/pages/Login.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-    setError('');
-  };
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
+    setSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Store user session
-        localStorage.setItem('bloomsoko-token', data.data.token);
-        localStorage.setItem('bloomsoko-user', JSON.stringify(data.data.user));
-        
-        toast.success(`Welcome back, ${data.data.user.firstName}!`);
-        navigate(from, { replace: true });
+      const res = await login(email, password);
+      if (res && res.success) {
+        toast.success(`Welcome back, ${res.data.user.firstName}!`);
+        // Force page refresh to update all states
+        window.location.href = '/';
       } else {
-        setError(data.message || 'Login failed');
-        toast.error(data.message || 'Login failed');
+        toast.error(res.error || 'Login failed');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      setError('Login failed. Please try again.');
-      toast.error('Login failed. Please try again.');
+    } catch (err) {
+      console.error('Login error', err);
+      toast.error('Network error');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -89,35 +65,19 @@ const Login = () => {
             <p style={{ color: '#666' }}>Sign in to your Bloomsoko account</p>
           </div>
 
-          {error && (
-            <div style={{
-              background: '#ffebee',
-              color: '#c62828',
-              padding: '1rem',
-              borderRadius: '8px',
-              marginBottom: '1.5rem',
-              border: '1px solid #ffcdd2'
-            }}>
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} autoComplete="on">
             <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontWeight: '600',
-                color: '#333'
-              }}>
+              <label htmlFor="email" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#333' }}>
                 Email Address
               </label>
               <input
-                type="email"
+                id="email"
                 name="email"
-                value={formData.email}
-                onChange={handleChange}
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
                 required
+                autoComplete="email"
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
@@ -130,20 +90,17 @@ const Login = () => {
             </div>
 
             <div style={{ marginBottom: '2rem' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontWeight: '600',
-                color: '#333'
-              }}>
+              <label htmlFor="password" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#333' }}>
                 Password
               </label>
               <input
-                type="password"
+                id="password"
                 name="password"
-                value={formData.password}
-                onChange={handleChange}
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
@@ -157,46 +114,32 @@ const Login = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={submitting}
               style={{
                 width: '100%',
-                background: loading ? '#ccc' : '#2E7D32',
+                background: submitting ? '#ccc' : '#2E7D32',
                 color: 'white',
                 border: 'none',
                 padding: '1rem',
                 borderRadius: '8px',
                 fontSize: '1.1rem',
                 fontWeight: '600',
-                cursor: loading ? 'not-allowed' : 'pointer',
+                cursor: submitting ? 'not-allowed' : 'pointer',
                 marginBottom: '1.5rem'
               }}
             >
-              {loading ? 'Signing In...' : 'Sign In'}
+              {submitting ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
 
           <div style={{ textAlign: 'center' }}>
             <p style={{ color: '#666', marginBottom: '1rem' }}>
               Don't have an account?{' '}
-              <Link 
-                to="/register" 
-                style={{ 
-                  color: '#2E7D32', 
-                  fontWeight: '600',
-                  textDecoration: 'none'
-                }}
-              >
+              <Link to="/register" style={{ color: '#2E7D32', fontWeight: '600', textDecoration: 'none' }}>
                 Sign up here
               </Link>
             </p>
-            <Link 
-              to="/forgot-password"
-              style={{ 
-                color: '#666',
-                textDecoration: 'none',
-                fontSize: '0.9rem'
-              }}
-            >
+            <Link to="/forgot-password" style={{ color: '#666', textDecoration: 'none', fontSize: '0.9rem' }}>
               Forgot your password?
             </Link>
           </div>

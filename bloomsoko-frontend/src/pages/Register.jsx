@@ -1,84 +1,54 @@
-// pages/Register.jsx
+// src/pages/Register.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 
 const Register = () => {
+  const { register } = useAuth();
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     password: '',
-    confirmPassword: '',
+    confirmPassword: ''
   });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [e.target.name]: e.target.value
     });
-    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
+    setSubmitting(true);
 
-    // Validation
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      setLoading(false);
+      toast.error('Passwords do not match');
+      setSubmitting(false);
       return;
     }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      setLoading(false);
-      return;
-    }
-
-    const userData = {
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      phone: formData.phone,
-      password: formData.password,
-    };
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Store user session
-        localStorage.setItem('bloomsoko-token', data.data.token);
-        localStorage.setItem('bloomsoko-user', JSON.stringify(data.data.user));
-        
-        toast.success(`Welcome to Bloomsoko, ${data.data.user.firstName}!`);
-        navigate('/', { replace: true });
+      const res = await register(formData);
+      if (res && res.success) {
+        toast.success(`Welcome to Bloomsoko, ${res.data.user.firstName}!`);
+        // Force page refresh to update all states
+        window.location.href = '/';
       } else {
-        setError(data.message || 'Registration failed');
-        toast.error(data.message || 'Registration failed');
+        toast.error(res.error || 'Registration failed');
       }
-    } catch (error) {
-      console.error('Registration error:', error);
-      setError('Registration failed. Please try again.');
-      toast.error('Registration failed. Please try again.');
+    } catch (err) {
+      console.error('Registration error', err);
+      toast.error('Network error');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -112,36 +82,20 @@ const Register = () => {
             <p style={{ color: '#666' }}>Join Bloomsoko today</p>
           </div>
 
-          {error && (
-            <div style={{
-              background: '#ffebee',
-              color: '#c62828',
-              padding: '1rem',
-              borderRadius: '8px',
-              marginBottom: '1.5rem',
-              border: '1px solid #ffcdd2'
-            }}>
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} autoComplete="on">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
               <div>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '0.5rem',
-                  fontWeight: '600',
-                  color: '#333'
-                }}>
+                <label htmlFor="firstName" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#333' }}>
                   First Name
                 </label>
                 <input
-                  type="text"
+                  id="firstName"
                   name="firstName"
+                  type="text"
                   value={formData.firstName}
                   onChange={handleChange}
                   required
+                  autoComplete="given-name"
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
@@ -152,21 +106,19 @@ const Register = () => {
                   placeholder="First name"
                 />
               </div>
+
               <div>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '0.5rem',
-                  fontWeight: '600',
-                  color: '#333'
-                }}>
+                <label htmlFor="lastName" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#333' }}>
                   Last Name
                 </label>
                 <input
-                  type="text"
+                  id="lastName"
                   name="lastName"
+                  type="text"
                   value={formData.lastName}
                   onChange={handleChange}
                   required
+                  autoComplete="family-name"
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
@@ -180,20 +132,17 @@ const Register = () => {
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontWeight: '600',
-                color: '#333'
-              }}>
+              <label htmlFor="email" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#333' }}>
                 Email Address
               </label>
               <input
-                type="email"
+                id="email"
                 name="email"
+                type="email"
                 value={formData.email}
                 onChange={handleChange}
                 required
+                autoComplete="email"
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
@@ -206,20 +155,17 @@ const Register = () => {
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontWeight: '600',
-                color: '#333'
-              }}>
+              <label htmlFor="phone" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#333' }}>
                 Phone Number
               </label>
               <input
-                type="tel"
+                id="phone"
                 name="phone"
+                type="tel"
                 value={formData.phone}
                 onChange={handleChange}
                 required
+                autoComplete="tel"
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
@@ -227,25 +173,22 @@ const Register = () => {
                   borderRadius: '8px',
                   fontSize: '1rem'
                 }}
-                placeholder="e.g., 0712345678"
+                placeholder="Enter your phone number"
               />
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontWeight: '600',
-                color: '#333'
-              }}>
+              <label htmlFor="password" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#333' }}>
                 Password
               </label>
               <input
-                type="password"
+                id="password"
                 name="password"
+                type="password"
                 value={formData.password}
                 onChange={handleChange}
                 required
+                autoComplete="new-password"
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
@@ -253,25 +196,22 @@ const Register = () => {
                   borderRadius: '8px',
                   fontSize: '1rem'
                 }}
-                placeholder="At least 6 characters"
+                placeholder="Create a password"
               />
             </div>
 
             <div style={{ marginBottom: '2rem' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontWeight: '600',
-                color: '#333'
-              }}>
+              <label htmlFor="confirmPassword" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#333' }}>
                 Confirm Password
               </label>
               <input
-                type="password"
+                id="confirmPassword"
                 name="confirmPassword"
+                type="password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 required
+                autoComplete="new-password"
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
@@ -285,35 +225,28 @@ const Register = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={submitting}
               style={{
                 width: '100%',
-                background: loading ? '#ccc' : '#2E7D32',
+                background: submitting ? '#ccc' : '#2E7D32',
                 color: 'white',
                 border: 'none',
                 padding: '1rem',
                 borderRadius: '8px',
                 fontSize: '1.1rem',
                 fontWeight: '600',
-                cursor: loading ? 'not-allowed' : 'pointer',
+                cursor: submitting ? 'not-allowed' : 'pointer',
                 marginBottom: '1.5rem'
               }}
             >
-              {loading ? 'Creating Account...' : 'Create Account'}
+              {submitting ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
 
           <div style={{ textAlign: 'center' }}>
             <p style={{ color: '#666' }}>
               Already have an account?{' '}
-              <Link 
-                to="/login" 
-                style={{ 
-                  color: '#2E7D32', 
-                  fontWeight: '600',
-                  textDecoration: 'none'
-                }}
-              >
+              <Link to="/login" style={{ color: '#2E7D32', fontWeight: '600', textDecoration: 'none' }}>
                 Sign in here
               </Link>
             </p>

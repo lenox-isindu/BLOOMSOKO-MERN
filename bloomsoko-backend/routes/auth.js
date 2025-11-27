@@ -1,4 +1,3 @@
-// routes/auth.js
 import express from 'express';
 import { body } from 'express-validator';
 import {
@@ -96,5 +95,4 @@ router.get('/profile', authenticate, getProfile);
 router.put('/profile', updateProfileValidation, handleValidationErrors, authenticate, updateProfile);
 router.put('/change-password', changePasswordValidation, handleValidationErrors, authenticate, changePassword);
 
-// CHANGE THIS LINE - Use default export instead
 export default router;

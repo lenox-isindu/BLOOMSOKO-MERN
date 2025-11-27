@@ -1,5 +1,6 @@
 // routes/orders.js
 import express from 'express';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
 import {
   getAllOrders,
   getUserOrders,
@@ -12,13 +13,13 @@ import {
 const router = express.Router();
 
 // Admin routes
-router.get('/admin', getAllOrders);
-router.get('/admin/stats', getOrderStats);
-router.put('/admin/:id/status', updateOrderStatus);
+router.get('/admin', authenticate, requireAdmin, getAllOrders);
+router.get('/admin/stats', authenticate, requireAdmin, getOrderStats);
+router.put('/admin/:id/status', authenticate, requireAdmin, updateOrderStatus);
 
 // User routes
-router.get('/user', getUserOrders);
-router.get('/:id', getOrder);
-router.put('/:id/cancel', cancelOrder);
+router.get('/user', authenticate, getUserOrders);
+router.get('/:id', authenticate, getOrder);
+router.put('/:id/cancel', authenticate, cancelOrder);
 
 export default router;

@@ -1,30 +1,44 @@
-// controllers/authController.js - COMPLETE VERSION
-import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import jwt from 'jsonwebtoken';
+import Cart from '../models/Cart.js';
 
-const generateToken = (userId, role = 'user') => {
+// Generate JWT token
+const generateToken = (userId) => {
   return jwt.sign(
-    { id: userId, role },
-    process.env.JWT_SECRET || 'fallback-secret',
+    { id: userId }, 
+    process.env.JWT_SECRET || 'your-fallback-secret-key',
     { expiresIn: '30d' }
   );
 };
 
-// CUSTOMER REGISTRATION
+// Register user
 export const register = async (req, res) => {
   try {
     const { firstName, lastName, email, phone, password } = req.body;
 
+    console.log('👤 User registration attempt:', { email, phone });
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ 
+      $or: [{ email }, { phone }] 
+    });
+
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists with this email'
-      });
+      if (existingUser.email === email) {
+        return res.status(400).json({
+          success: false,
+          message: 'User already exists with this email.'
+        });
+      }
+      if (existingUser.phone === phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'User already exists with this phone number.'
+        });
+      }
     }
 
-    // Create new user (always as 'user' role for customer registration)
+    // Create new user
     const user = new User({
       firstName,
       lastName,
@@ -37,14 +51,16 @@ export const register = async (req, res) => {
     await user.save();
 
     // Generate token
-    const token = generateToken(user._id, user.role);
+    const token = generateToken(user._id);
+
+    console.log('✅ User registered successfully:', user.email);
 
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       data: {
         user: {
-          id: user._id,
+          _id: user._id,
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
@@ -54,9 +70,8 @@ export const register = async (req, res) => {
         token
       }
     });
-
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('❌ Registration error:', error);
     res.status(500).json({
       success: false,
       message: 'Error registering user',
@@ -65,34 +80,40 @@ export const register = async (req, res) => {
   }
 };
 
-// LOGIN FOR BOTH CUSTOMER & ADMIN
+// Login user
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user by email (include password for comparison)
+    console.log('🔐 User login attempt:', email);
+
+    // Find user by email and include password for verification
     const user = await User.findOne({ email }).select('+password');
-    
+
     if (!user) {
+      console.log('❌ Login failed: User not found');
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid email or password.'
       });
     }
 
     if (!user.isActive) {
+      console.log('❌ Login failed: Account deactivated');
       return res.status(401).json({
         success: false,
-        message: 'Account is deactivated'
+        message: 'Account is deactivated. Please contact support.'
       });
     }
 
     // Check password
     const isPasswordValid = await user.comparePassword(password);
+
     if (!isPasswordValid) {
+      console.log('❌ Login failed: Invalid password');
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid email or password.'
       });
     }
 
@@ -101,77 +122,54 @@ export const login = async (req, res) => {
     await user.save();
 
     // Generate token
-    const token = generateToken(user._id, user.role);
+    const token = generateToken(user._id);
 
-    // Prepare user data for response
-    const userData = {
-      id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role,
-      lastLogin: user.lastLogin
-    };
-
-    // Add phone for customers, adminPermissions for admins
-    if (user.role === 'user') {
-      userData.phone = user.phone;
-    } else if (user.role === 'admin') {
-      userData.adminPermissions = user.adminPermissions;
-    }
+    console.log('✅ User logged in successfully:', user.email);
 
     res.json({
       success: true,
-      message: `Login successful - ${user.role === 'admin' ? 'Admin' : 'Customer'}`,
+      message: 'Login successful',
       data: {
-        user: userData,
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          lastLogin: user.lastLogin
+        },
         token
       }
     });
-
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error during login',
+      message: 'Error logging in',
       error: error.message
     });
   }
 };
 
-// GET USER PROFILE
+// Get user profile
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    
+    const user = await User.findById(req.user._id);
+
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found.'
       });
-    }
-
-    const userData = {
-      id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role,
-      lastLogin: user.lastLogin
-    };
-
-    if (user.role === 'user') {
-      userData.phone = user.phone;
-    } else if (user.role === 'admin') {
-      userData.adminPermissions = user.adminPermissions;
     }
 
     res.json({
       success: true,
-      data: { user: userData }
+      data: user
     });
   } catch (error) {
-    console.error('Get profile error:', error);
+    console.error('❌ Get profile error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching profile',
@@ -180,53 +178,57 @@ export const getProfile = async (req, res) => {
   }
 };
 
-// UPDATE PROFILE - FIXED VERSION
+// Update user profile
 export const updateProfile = async (req, res) => {
   try {
     const { firstName, lastName, phone } = req.body;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    const updateData = { 
-      firstName, 
-      lastName 
-    };
-    
-    // Update phone for both users and admins
-    if (phone !== undefined) {
-      updateData.phone = phone;
+    console.log('👤 Profile update attempt for user:', userId);
+
+    // Check if phone is being updated and if it's already taken
+    if (phone) {
+      const existingUser = await User.findOne({ 
+        phone, 
+        _id: { $ne: userId } 
+      });
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number already in use by another account.'
+        });
+      }
     }
 
-    const user = await User.findByIdAndUpdate(
+    const updatedUser = await User.findByIdAndUpdate(
       userId,
-      updateData,
+      { 
+        $set: { 
+          ...(firstName && { firstName }),
+          ...(lastName && { lastName }),
+          ...(phone && { phone })
+        } 
+      },
       { new: true, runValidators: true }
     );
 
-    const userData = {
-      id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role
-    };
-
-    // Include phone for both users and admins
-    if (user.phone) {
-      userData.phone = user.phone;
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.'
+      });
     }
 
-    if (user.role === 'admin') {
-      userData.adminPermissions = user.adminPermissions;
-    }
+    console.log('✅ Profile updated successfully for user:', userId);
 
     res.json({
       success: true,
       message: 'Profile updated successfully',
-      data: { user: userData }
+      data: updatedUser
     });
-
   } catch (error) {
-    console.error('Update profile error:', error);
+    console.error('❌ Update profile error:', error);
     res.status(500).json({
       success: false,
       message: 'Error updating profile',
@@ -235,42 +237,46 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// CHANGE PASSWORD - ADD THIS FUNCTION
+// Change password
 export const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    // Find user with password field
+    console.log('🔑 Password change attempt for user:', userId);
+
+    // Find user with password
     const user = await User.findById(userId).select('+password');
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found.'
       });
     }
 
     // Verify current password
     const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+
     if (!isCurrentPasswordValid) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: 'Current password is incorrect'
+        message: 'Current password is incorrect.'
       });
     }
 
-    // Update to new password
+    // Update password
     user.password = newPassword;
     await user.save();
 
+    console.log('✅ Password changed successfully for user:', userId);
+
     res.json({
       success: true,
-      message: 'Password updated successfully'
+      message: 'Password changed successfully'
     });
-
   } catch (error) {
-    console.error('Change password error:', error);
+    console.error('❌ Change password error:', error);
     res.status(500).json({
       success: false,
       message: 'Error changing password',
