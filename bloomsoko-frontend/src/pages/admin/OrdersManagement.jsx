@@ -19,27 +19,62 @@ const OrdersManagement = () => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const ordersResponse = await orderAPI.getAll({ status: statusFilter === 'all' ? '' : statusFilter });
-      const statsResponse = await orderAPI.getStats();
       
-      console.log('Orders response:', ordersResponse);
-      console.log('Stats response:', statsResponse);
+      // Fetch orders
+      const token = localStorage.getItem('adminToken');
+      const ordersResponse = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/orders/admin${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
       
-      // Handle different response formats
-      if (ordersResponse && ordersResponse.data) {
-        setOrders(ordersResponse.data);
-      } else if (Array.isArray(ordersResponse)) {
-        setOrders(ordersResponse);
-      } else if (ordersResponse.orders) {
-        setOrders(ordersResponse.orders);
+      const ordersData = await ordersResponse.json();
+      
+      // Fetch stats
+      const statsResponse = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/orders/admin/stats`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      const statsData = await statsResponse.json();
+      
+      console.log('Orders response:', ordersData);
+      console.log('Stats response:', statsData);
+      
+      // Handle orders response
+      if (ordersData.success) {
+        setOrders(ordersData.data || []);
       } else {
         setOrders([]);
+        toast.error(ordersData.message || 'Failed to load orders');
       }
       
-      if (statsResponse && statsResponse.data) {
-        setStats(statsResponse.data);
-      } else if (statsResponse) {
-        setStats(statsResponse);
+      // Handle stats response
+      if (statsData.success) {
+        setStats(statsData.data || {
+          totalOrders: 0,
+          pendingOrders: 0,
+          completedOrders: 0,
+          cancelledOrders: 0,
+          totalRevenue: 0
+        });
+      } else {
+        setStats({
+          totalOrders: 0,
+          pendingOrders: 0,
+          completedOrders: 0,
+          cancelledOrders: 0,
+          totalRevenue: 0
+        });
       }
       
     } catch (error) {
@@ -58,13 +93,31 @@ const OrdersManagement = () => {
   // Update order status
   const updateOrderStatus = async (orderId, newStatus, notes = '') => {
     try {
-      await orderAPI.updateStatus(orderId, { status: newStatus, notes });
-      toast.success(`Order status updated to ${newStatus}`);
-      fetchOrders(); // Refresh the list
-      setSelectedOrder(null); // Close modal
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/orders/admin/${orderId}/status`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: newStatus, notes })
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(data.message || `Order status updated to ${newStatus}`);
+        fetchOrders(); // Refresh the list
+        setSelectedOrder(null); // Close modal
+      } else {
+        throw new Error(data.message || 'Failed to update order status');
+      }
     } catch (error) {
       console.error('Error updating order status:', error);
-      toast.error('Failed to update order status');
+      toast.error(error.message || 'Failed to update order status');
     }
   };
 
@@ -72,12 +125,29 @@ const OrdersManagement = () => {
   const cancelOrder = async (orderId) => {
     if (window.confirm('Are you sure you want to cancel this order?')) {
       try {
-        await orderAPI.cancel(orderId);
-        toast.success('Order cancelled successfully');
-        fetchOrders(); // Refresh the list
+        const token = localStorage.getItem('adminToken');
+        const response = await fetch(
+          `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/orders/${orderId}/cancel`,
+          {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        const data = await response.json();
+
+        if (data.success) {
+          toast.success('Order cancelled successfully');
+          fetchOrders(); // Refresh the list
+        } else {
+          throw new Error(data.message || 'Failed to cancel order');
+        }
       } catch (error) {
         console.error('Error cancelling order:', error);
-        toast.error('Failed to cancel order');
+        toast.error(error.message || 'Failed to cancel order');
       }
     }
   };
@@ -93,13 +163,11 @@ const OrdersManagement = () => {
     });
   };
 
-  // Get status badge color
+  // Get status badge color - UPDATED to match your backend
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return 'var(--warning)';
-      case 'processing': return 'var(--info)';
-      case 'ready_for_pickup': return 'var(--accent-gold)';
-      case 'picked_up': return 'var(--success)';
+      case 'completed': return 'var(--success)';
       case 'cancelled': return 'var(--error)';
       default: return 'var(--text-light)';
     }
@@ -138,49 +206,63 @@ const OrdersManagement = () => {
         </div>
       </div>
 
-      {/* Order Stats */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: 'var(--space-5)',
-        marginBottom: 'var(--space-6)'
-      }}>
-        <div className="stat-card gold">
-          <div className="stat-value" style={{ color: 'var(--accent-gold)' }}>
-            {stats.totalOrders}
-          </div>
-          <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
-            Total Orders
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-value" style={{ color: 'var(--warning)' }}>
-            {stats.pendingOrders}
-          </div>
-          <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
-            Pending
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-value" style={{ color: 'var(--success)' }}>
-            {stats.completedOrders}
-          </div>
-          <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
-            Completed
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-value" style={{ color: 'var(--info)' }}>
-            KSh {stats.totalRevenue?.toLocaleString() || '0'}
-          </div>
-          <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
-            Total Revenue
-          </div>
-        </div>
-      </div>
+     {/* Order Stats */}
+<div style={{
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+  gap: 'var(--space-5)',
+  marginBottom: 'var(--space-6)'
+}}>
+  {/* Total Orders */}
+  <div className="stat-card gold">
+    <div className="stat-value" style={{ color: 'var(--accent-gold)' }}>
+      {stats.totalOrders}
+    </div>
+    <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
+      Total Orders
+    </div>
+  </div>
+  
+  {/* Pending Orders */}
+  <div className="stat-card">
+    <div className="stat-value" style={{ color: 'var(--warning)' }}>
+      {stats.pendingOrders}
+    </div>
+    <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
+      Pending
+    </div>
+  </div>
+  
+  {/* Completed Orders */}
+  <div className="stat-card">
+    <div className="stat-value" style={{ color: 'var(--success)' }}>
+      {stats.completedOrders}
+    </div>
+    <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
+      Completed
+    </div>
+  </div>
+  
+  {/* Cancelled Orders - NEW CARD */}
+  <div className="stat-card">
+    <div className="stat-value" style={{ color: 'var(--error)' }}>
+      {stats.cancelledOrders || 0}
+    </div>
+    <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
+      Cancelled
+    </div>
+  </div>
+  
+  {/* Total Revenue */}
+  <div className="stat-card">
+    <div className="stat-value" style={{ color: 'var(--info)' }}>
+      KSh {stats.totalRevenue?.toLocaleString() || '0'}
+    </div>
+    <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
+      Total Revenue
+    </div>
+  </div>
+</div>
 
       {/* Orders Table */}
       <div className="card">
@@ -199,7 +281,7 @@ const OrdersManagement = () => {
             All Orders ({orders.length})
           </h3>
           
-          {/* Status Filter */}
+          {/* Status Filter - UPDATED to match your backend */}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -208,9 +290,7 @@ const OrdersManagement = () => {
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="ready_for_pickup">Ready for Pickup</option>
-            <option value="picked_up">Completed</option>
+            <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
@@ -320,7 +400,7 @@ const OrdersManagement = () => {
                             textTransform: 'capitalize'
                           }}
                         >
-                          {order.status?.replace(/_/g, ' ') || 'Unknown'}
+                          {order.status || 'Unknown'}
                         </span>
                       </td>
                       
@@ -388,7 +468,7 @@ const OrdersManagement = () => {
   );
 };
 
-// Order Details Modal Component
+// Order Details Modal Component - UPDATED status options
 const OrderDetailsModal = ({ order, onClose, onStatusUpdate }) => {
   const [status, setStatus] = useState(order.status);
   const [notes, setNotes] = useState(order.notes || '');
@@ -613,7 +693,7 @@ const OrderDetailsModal = ({ order, onClose, onStatusUpdate }) => {
               </div>
             </div>
 
-            {/* Order Status Update */}
+            {/* Order Status Update - UPDATED status options */}
             <div>
               <h4 style={{ 
                 marginBottom: 'var(--space-4)',
@@ -632,9 +712,7 @@ const OrderDetailsModal = ({ order, onClose, onStatusUpdate }) => {
                     className="form-select"
                   >
                     <option value="pending">Pending</option>
-                    <option value="processing">Processing</option>
-                    <option value="ready_for_pickup">Ready for Pickup</option>
-                    <option value="picked_up">Completed</option>
+                    <option value="completed">Completed</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
                 </div>

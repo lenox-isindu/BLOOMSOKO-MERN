@@ -77,7 +77,8 @@ const Navbar = () => {
                     <Link to="/" className={styles.navLink} onClick={closeMenu}>Home</Link>
                     <Link to="/products" className={styles.navLink} onClick={closeMenu}>Products</Link>
                     <Link to="/categories" className={styles.navLink} onClick={closeMenu}>Categories</Link>
-
+                    <Link to="/promotions" className={styles.navLink} onClick={closeMenu}>promos</Link>
+                    
                     {isAuthenticated && user ? (
                         <div className={styles.userSection}>
                             <div className={styles.userMenu}>

@@ -8,23 +8,43 @@ const ProductDetail = () => {
     const [loading, setLoading] = useState(true);
     const [selectedImage, setSelectedImage] = useState(0);
     const [quantity, setQuantity] = useState(1);
+    const [debugMode, setDebugMode] = useState(true);
 
     const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
     useEffect(() => {
         fetchProduct();
+        
+        // Auto-refresh every 3 seconds
+        const interval = setInterval(fetchProduct, 3000);
+        
+        return () => clearInterval(interval);
     }, [id]);
 
     const fetchProduct = async () => {
         try {
-            setLoading(true);
+            console.log('🔄 FETCHING PRODUCT FROM:', `${API_BASE_URL}/products/${id}`);
+            
             const response = await fetch(`${API_BASE_URL}/products/${id}`);
-            if (!response.ok) throw new Error('Failed to fetch product');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: Failed to fetch product`);
+            }
             
             const productData = await response.json();
+            
+            console.log('📦 PRODUCT DATA RECEIVED:', {
+                name: productData.name,
+                stock: productData.inventory?.stock,
+                reservedStock: productData.inventory?.reservedStock,
+                availableStock: productData.inventory ? 
+                    (productData.inventory.stock - productData.inventory.reservedStock) : 0
+            });
+
             setProduct(productData);
+            
         } catch (error) {
-            console.error('Error fetching product:', error);
+            console.error('❌ Error fetching product:', error);
         } finally {
             setLoading(false);
         }
@@ -38,6 +58,8 @@ const ProductDetail = () => {
         }
 
         try {
+            console.log('🛒 ADDING TO CART:', { productId: product._id, quantity });
+
             const response = await fetch(`${API_BASE_URL}/cart/add`, {
                 method: 'POST',
                 headers: {
@@ -45,17 +67,29 @@ const ProductDetail = () => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    productId: product._id || product.id,
+                    productId: product._id,
                     quantity: quantity
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to add to cart');
+            console.log('🛒 CART RESPONSE STATUS:', response.status, response.ok);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to add to cart');
+            }
+            
+            const result = await response.json();
+            console.log('✅ ADD TO CART RESULT:', result);
             
             alert(`${product.name} added to cart!`);
+            
+            // Force immediate refresh
+            await fetchProduct();
+            
         } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to add to cart. Please try again.');
+            console.error('❌ Add to cart error:', error);
+            alert(error.message || 'Failed to add to cart. Please try again.');
         }
     };
 
@@ -71,27 +105,23 @@ const ProductDetail = () => {
 
     if (loading) {
         return (
-            <div className="loading" style={{ 
-                textAlign: 'center', 
-                padding: 'var(--space-8)',
-                color: 'var(--primary-main)'
-            }}>
-                Loading product...
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+                <h2>Loading product...</h2>
             </div>
         );
     }
 
     if (!product) {
         return (
-            <div className="error-message" style={{ 
-                textAlign: 'center', 
-                padding: 'var(--space-8)',
-                color: 'var(--error-main)'
-            }}>
-                Product not found.
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+                <h2>Product not found.</h2>
             </div>
         );
     }
+
+    // Calculate available stock (stock - reservedStock)
+    const availableStock = product.inventory ? 
+        (product.inventory.stock - product.inventory.reservedStock) : 0;
 
     const categoryClass = getCategoryClass(product.category);
     const isFarmProduct = product.category?.toLowerCase() === 'farm';
@@ -100,16 +130,36 @@ const ProductDetail = () => {
         true;
 
     return (
-        <div className="product-detail">
-            <div className="breadcrumbs" style={{ 
-                padding: 'var(--space-4) 5%',
-                background: 'var(--bg-secondary)',
-                color: 'var(--text-secondary)'
+        <div>
+            {/* BIG RED DEBUG BUTTON - CAN'T MISS IT */}
+            <div style={{
+                position: 'fixed',
+                top: '20px',
+                right: '20px',
+                zIndex: 1000,
+                background: debugMode ? '#dc3545' : '#28a745',
+                color: 'white',
+                padding: '15px 20px',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                fontSize: '16px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+                border: '3px solid white'
             }}>
-                <Link to="/" style={{ color: 'var(--primary-main)', textDecoration: 'none' }}>
+                <div onClick={() => setDebugMode(!debugMode)}>
+                    {debugMode ? '🔴 DEBUG ON' : '🟢 DEBUG OFF'}
+                </div>
+            </div>
+
+            <div className="breadcrumbs" style={{ 
+                padding: '20px 5%',
+                background: '#f8f9fa'
+            }}>
+                <Link to="/" style={{ color: '#2E7D32', textDecoration: 'none' }}>
                     Home
                 </Link> &gt;{' '}
-                <Link to="/products" style={{ color: 'var(--primary-main)', textDecoration: 'none' }}>
+                <Link to="/products" style={{ color: '#2E7D32', textDecoration: 'none' }}>
                     Products
                 </Link> &gt;{' '}
                 <span>{product.name}</span>
@@ -117,144 +167,238 @@ const ProductDetail = () => {
             
             <div style={{ 
                 display: 'flex', 
-                padding: 'var(--space-8) 5%',
-                gap: 'var(--space-8)',
+                padding: '40px 5%',
+                gap: '40px',
                 maxWidth: '1200px',
                 margin: '0 auto'
             }}>
                 {/* Product Images */}
                 <div style={{ flex: 1 }}>
                     <div style={{ 
-                        background: 'var(--bg-white)',
-                        borderRadius: 'var(--radius-lg)',
-                        padding: 'var(--space-4)',
-                        boxShadow: 'var(--shadow-md)',
-                        marginBottom: 'var(--space-4)'
+                        background: 'white',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                        marginBottom: '20px'
                     }}>
                         <img 
-                            src={product.images?.[selectedImage] || '/images/default-product.jpg'} 
+                            src={product.featuredImage?.url || '/images/default-product.jpg'} 
                             alt={product.name}
                             style={{ 
                                 width: '100%', 
                                 height: '400px',
                                 objectFit: 'cover',
-                                borderRadius: 'var(--radius-md)'
+                                borderRadius: '8px'
                             }}
                         />
-                    </div>
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', overflowX: 'auto' }}>
-                        {product.images?.map((image, index) => (
-                            <img
-                                key={index}
-                                src={image}
-                                alt={`${product.name} ${index + 1}`}
-                                style={{ 
-                                    width: '80px',
-                                    height: '80px',
-                                    objectFit: 'cover',
-                                    borderRadius: 'var(--radius-sm)',
-                                    cursor: 'pointer',
-                                    border: index === selectedImage ? '2px solid var(--primary-main)' : '1px solid var(--border-light)',
-                                    opacity: index === selectedImage ? 1 : 0.7
-                                }}
-                                onClick={() => setSelectedImage(index)}
-                            />
-                        ))}
                     </div>
                 </div>
                 
                 {/* Product Info */}
                 <div style={{ flex: 1 }}>
                     <div style={{ 
-                        background: 'var(--bg-white)',
-                        borderRadius: 'var(--radius-lg)',
-                        padding: 'var(--space-6)',
-                        boxShadow: 'var(--shadow-md)'
+                        background: 'white',
+                        borderRadius: '12px',
+                        padding: '30px',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
                     }}>
                         <h1 style={{ 
-                            fontSize: 'var(--font-size-2xl)',
-                            marginBottom: 'var(--space-4)',
-                            color: 'var(--text-dark)'
+                            fontSize: '28px',
+                            marginBottom: '20px',
+                            color: '#333'
                         }}>
                             {product.name}
                         </h1>
                         
-                        <div style={{ marginBottom: 'var(--space-4)' }}>
+                        <div style={{ marginBottom: '20px' }}>
                             <span style={{ 
                                 display: 'inline-block',
-                                padding: 'var(--space-1) var(--space-3)',
+                                padding: '5px 15px',
                                 borderRadius: '50px',
-                                fontSize: 'var(--font-size-sm)',
+                                fontSize: '14px',
                                 fontWeight: '600',
-                                color: 'var(--text-light)',
-                                background: `var(--${categoryClass}-pink)` 
+                                color: 'white',
+                                background: '#2E7D32'
                             }}>
                                 {product.category}
                             </span>
                         </div>
                         
-                        <div style={{ marginBottom: 'var(--space-6)' }}>
+                        <div style={{ marginBottom: '30px' }}>
                             <span style={{ 
-                                fontSize: 'var(--font-size-3xl)',
+                                fontSize: '32px',
                                 fontWeight: '700',
-                                color: `var(--${categoryClass}-pink)`
+                                color: '#2E7D32'
                             }}>
                                 KSh {product.price?.toLocaleString() || '0'}
                             </span>
                         </div>
                         
-                        <div style={{ marginBottom: 'var(--space-6)' }}>
+                        <div style={{ marginBottom: '30px' }}>
                             <p style={{ 
-                                color: 'var(--text-secondary)',
+                                color: '#666',
                                 lineHeight: '1.6'
                             }}>
                                 {product.description || 'No description available.'}
                             </p>
                         </div>
+
+                        {/* DEBUG INFORMATION - BIG AND CLEAR */}
+                        {debugMode && (
+                            <div style={{
+                                background: '#fff3cd',
+                                padding: '20px',
+                                borderRadius: '8px',
+                                marginBottom: '20px',
+                                border: '3px solid #ffc107'
+                            }}>
+                                <h3 style={{ 
+                                    color: '#856404', 
+                                    margin: '0 0 15px 0'
+                                }}>
+                                    🐛 DEBUG INFORMATION
+                                </h3>
+                                
+                                <div style={{ 
+                                    background: 'white',
+                                    padding: '15px',
+                                    borderRadius: '6px',
+                                    marginBottom: '15px',
+                                    border: '1px solid #ffeaa7'
+                                }}>
+                                    <h4 style={{ margin: '0 0 10px 0', color: '#856404' }}>
+                                        CURRENT PRODUCT DATA:
+                                    </h4>
+                                    <div style={{ fontFamily: 'monospace', fontSize: '14px' }}>
+                                        <div>📦 Product ID: <strong>{product._id}</strong></div>
+                                        <div>🏷️ Name: <strong>{product.name}</strong></div>
+                                        <div>📊 Stock: <strong style={{color: '#1976d2'}}>{product.inventory?.stock}</strong></div>
+                                        <div>🔒 Reserved: <strong style={{color: '#f57c00'}}>{product.inventory?.reservedStock}</strong></div>
+                                        <div>🛒 Available: <strong style={{color: availableStock > 0 ? '#28a745' : '#dc3545'}}>{availableStock}</strong></div>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={() => {
+                                        console.log('🧪 MANUAL DEBUG CHECK - FULL PRODUCT DATA:', product);
+                                        console.log('🧪 CALCULATION:');
+                                        console.log('   Stock:', product.inventory?.stock);
+                                        console.log('   Reserved:', product.inventory?.reservedStock);
+                                        console.log('   Available (Stock - Reserved):', availableStock);
+                                        alert('Check browser console for detailed debug info!');
+                                    }}
+                                    style={{
+                                        background: '#17a2b8',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '10px 15px',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold',
+                                        width: '100%'
+                                    }}
+                                >
+                                    🧪 CLICK ME - Check Console for Debug Info
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Inventory Tracker */}
+                        <div style={{
+                            background: '#e3f2fd',
+                            padding: '20px',
+                            borderRadius: '8px',
+                            marginBottom: '20px',
+                            border: '2px solid #2196f3'
+                        }}>
+                            <h3 style={{ 
+                                color: '#1565c0', 
+                                margin: '0 0 15px 0'
+                            }}>
+                                📊 INVENTORY STATUS
+                            </h3>
+                            <div style={{ 
+                                display: 'grid', 
+                                gridTemplateColumns: '1fr 1fr 1fr',
+                                gap: '15px',
+                                textAlign: 'center'
+                            }}>
+                                <div>
+                                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>TOTAL STOCK</div>
+                                    <div style={{ fontSize: '24px', color: '#1976d2', fontWeight: 'bold' }}>
+                                        {product.inventory?.stock || 0}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>RESERVED</div>
+                                    <div style={{ fontSize: '24px', color: '#f57c00', fontWeight: 'bold' }}>
+                                        {product.inventory?.reservedStock || 0}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>AVAILABLE</div>
+                                    <div style={{ 
+                                        fontSize: '24px', 
+                                        color: availableStock > 0 ? '#2e7d32' : '#dc3545',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        {availableStock}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         
                         {/* Purchase Section */}
-                        <div style={{ marginBottom: 'var(--space-6)' }}>
+                        <div style={{ marginBottom: '30px' }}>
                             <div style={{ 
                                 display: 'flex', 
                                 alignItems: 'center',
-                                gap: 'var(--space-4)',
-                                marginBottom: 'var(--space-4)'
+                                gap: '20px',
+                                marginBottom: '20px'
                             }}>
-                                <label style={{ fontWeight: '600' }}>Quantity:</label>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                <label style={{ fontWeight: '600', fontSize: '18px' }}>Quantity:</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <button 
                                         onClick={() => setQuantity(Math.max(1, quantity - 1))}
                                         disabled={quantity <= 1}
                                         style={{
-                                            padding: 'var(--space-2)',
-                                            border: '1px solid var(--border-light)',
-                                            background: 'var(--bg-white)',
-                                            borderRadius: 'var(--radius-sm)',
+                                            padding: '12px 16px',
+                                            border: '1px solid #ddd',
+                                            background: quantity <= 1 ? '#f5f5f5' : '#fff',
+                                            borderRadius: '6px',
                                             cursor: quantity <= 1 ? 'not-allowed' : 'pointer',
-                                            opacity: quantity <= 1 ? 0.5 : 1
+                                            fontSize: '18px',
+                                            fontWeight: 'bold',
+                                            minWidth: '50px'
                                         }}
                                     >
                                         -
                                     </button>
                                     <span style={{ 
-                                        padding: 'var(--space-2) var(--space-4)',
-                                        border: '1px solid var(--border-light)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        minWidth: '50px',
-                                        textAlign: 'center'
+                                        padding: '12px 24px',
+                                        border: '2px solid #2E7D32',
+                                        borderRadius: '6px',
+                                        minWidth: '80px',
+                                        textAlign: 'center',
+                                        background: '#f8fff8',
+                                        fontSize: '18px',
+                                        fontWeight: '600',
+                                        color: '#2E7D32'
                                     }}>
                                         {quantity}
                                     </span>
                                     <button 
                                         onClick={() => setQuantity(quantity + 1)}
-                                        disabled={product.stock !== undefined && quantity >= product.stock}
+                                        disabled={quantity >= availableStock}
                                         style={{
-                                            padding: 'var(--space-2)',
-                                            border: '1px solid var(--border-light)',
-                                            background: 'var(--bg-white)',
-                                            borderRadius: 'var(--radius-sm)',
-                                            cursor: (product.stock !== undefined && quantity >= product.stock) ? 'not-allowed' : 'pointer',
-                                            opacity: (product.stock !== undefined && quantity >= product.stock) ? 0.5 : 1
+                                            padding: '12px 16px',
+                                            border: '1px solid #ddd',
+                                            background: quantity >= availableStock ? '#f5f5f5' : '#fff',
+                                            borderRadius: '6px',
+                                            cursor: quantity >= availableStock ? 'not-allowed' : 'pointer',
+                                            fontSize: '18px',
+                                            fontWeight: 'bold',
+                                            minWidth: '50px'
                                         }}
                                     >
                                         +
@@ -262,68 +406,57 @@ const ProductDetail = () => {
                                 </div>
                             </div>
                             
-                            <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-                                <button 
-                                    style={{
-                                        flex: 1,
-                                        padding: 'var(--space-4)',
-                                        background: `var(--${categoryClass}-pink)`,
-                                        color: 'var(--text-light)',
-                                        border: 'none',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontWeight: '600',
-                                        cursor: product.stock === 0 ? 'not-allowed' : 'pointer',
-                                        opacity: product.stock === 0 ? 0.5 : 1
-                                    }}
-                                    onClick={handleAddToCart}
-                                    disabled={product.stock === 0}
-                                >
-                                    {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-                                </button>
-                                
-                                {isFarmProduct && !isReady && (
-                                    <button style={{
-                                        flex: 1,
-                                        padding: 'var(--space-4)',
-                                        background: `var(--${categoryClass}-pink)`,
-                                        color: 'var(--text-light)',
-                                        border: 'none',
-                                        borderRadius: 'var(--radius-md)',
-                                        fontWeight: '600',
-                                        cursor: 'pointer'
-                                    }}>
-                                        Book Now
-                                    </button>
-                                )}
-                            </div>
+                            <button 
+                                style={{
+                                    width: '100%',
+                                    padding: '15px',
+                                    background: availableStock === 0 ? '#ccc' : '#2E7D32',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontWeight: '600',
+                                    cursor: availableStock === 0 ? 'not-allowed' : 'pointer',
+                                    fontSize: '18px',
+                                    transition: 'all 0.3s ease'
+                                }}
+                                onClick={handleAddToCart}
+                                disabled={availableStock === 0}
+                                onMouseOver={(e) => {
+                                    if (availableStock > 0) {
+                                        e.target.style.opacity = '0.9';
+                                        e.target.style.transform = 'translateY(-2px)';
+                                    }
+                                }}
+                                onMouseOut={(e) => {
+                                    if (availableStock > 0) {
+                                        e.target.style.opacity = '1';
+                                        e.target.style.transform = 'translateY(0)';
+                                    }
+                                }}
+                            >
+                                {availableStock === 0 ? 'Out of Stock' : 'Add to Cart'}
+                            </button>
                         </div>
-                        
-                        {/* Product Meta */}
+
+                        {/* Quick Actions */}
                         <div style={{ 
-                            padding: 'var(--space-4)',
-                            background: 'var(--bg-secondary)',
-                            borderRadius: 'var(--radius-md)'
+                            display: 'flex', 
+                            gap: '10px', 
+                            marginTop: '20px'
                         }}>
-                            <div style={{ marginBottom: 'var(--space-2)' }}>
-                                <strong>Availability:</strong>{' '}
-                                <span style={{ 
-                                    color: product.stock > 0 ? 'var(--success-main)' : 'var(--error-main)',
-                                    fontWeight: '600'
-                                }}>
-                                    {product.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                                </span>
-                            </div>
-                            {isFarmProduct && (
-                                <div>
-                                    <strong>Status:</strong>{' '}
-                                    <span style={{ 
-                                        color: isReady ? 'var(--success-main)' : 'var(--warning-main)',
-                                        fontWeight: '600'
-                                    }}>
-                                        {isReady ? 'Available Now' : 'Pre-order'}
-                                    </span>
-                                </div>
-                            )}
+                            <button 
+                                onClick={fetchProduct}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid #6c757d',
+                                    color: '#6c757d',
+                                    padding: '8px 15px',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                🔄 Refresh Data
+                            </button>
                         </div>
                     </div>
                 </div>

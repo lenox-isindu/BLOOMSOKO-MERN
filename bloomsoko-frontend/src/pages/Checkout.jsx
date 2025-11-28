@@ -192,6 +192,20 @@ const Checkout = () => {
 
   const cartItems = cart?.items || cart || [];
   const subtotal = getCartTotal();
+  // In Checkout.jsx - Add this useEffect
+useEffect(() => {
+    // Listen for successful orders to refresh product data
+    const handleOrderSuccess = () => {
+        // Emit event to refresh all product inventories
+        window.dispatchEvent(new Event('refreshAllProducts'));
+    };
+
+    window.addEventListener('orderSuccess', handleOrderSuccess);
+    
+    return () => {
+        window.removeEventListener('orderSuccess', handleOrderSuccess);
+    };
+}, []);
 
   useEffect(() => {
     // Redirect if not authenticated

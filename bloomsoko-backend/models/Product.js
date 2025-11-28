@@ -42,6 +42,10 @@ const productSchema = new mongoose.Schema({
       required: true,
       default: 0,
     },
+    reservedStock: {
+      type: Number,
+      default: 0,
+    },
     sku: {
       type: String,
       unique: true,
@@ -56,7 +60,6 @@ const productSchema = new mongoose.Schema({
       default: 10,
     },
   },
-  // Product type and pre-order system
   productType: {
     type: String,
     enum: ['ready', 'growing', 'pre-order'],
@@ -80,7 +83,7 @@ const productSchema = new mongoose.Schema({
       default: 0
     }
   },
-  // Pre-order/booking system
+  
   preOrders: [{
     customer: {
       type: mongoose.Schema.Types.ObjectId,
@@ -112,7 +115,6 @@ const productSchema = new mongoose.Schema({
     title: String,
     description: String,
   },
-  //  FLAGS SYSTEM
   flags: {
     isFeatured: {
       type: Boolean,
@@ -134,7 +136,6 @@ const productSchema = new mongoose.Schema({
       type: Boolean,
       default: false,
     },
-    
     isLimited: {
       type: Boolean,
       default: false,
@@ -178,7 +179,6 @@ const productSchema = new mongoose.Schema({
       default: 0,
     },
   },
-  // Stock management
   stockStatus: {
     type: String,
     enum: ['in-stock', 'low-stock', 'out-of-stock', 'pre-order'],
@@ -190,16 +190,18 @@ const productSchema = new mongoose.Schema({
 
 // Update flags automatically
 productSchema.pre('save', function(next) {
+  const availableStock = this.inventory.stock - this.inventory.reservedStock;
+  
   // Update out of stock flag
-  this.flags.isOutOfStock = this.inventory.stock === 0;
+  this.flags.isOutOfStock = availableStock <= 0;
   
   // Update pre-order flag
   this.flags.canPreOrder = this.productType !== 'ready';
   
   // Update stock status
-  if (this.inventory.stock === 0) {
+  if (availableStock <= 0) {
     this.stockStatus = 'out-of-stock';
-  } else if (this.inventory.stock <= this.inventory.lowStockThreshold) {
+  } else if (availableStock <= this.inventory.lowStockThreshold) {
     this.stockStatus = 'low-stock';
   } else if (this.productType !== 'ready') {
     this.stockStatus = 'pre-order';
@@ -210,14 +212,48 @@ productSchema.pre('save', function(next) {
   next();
 });
 
+// Virtual for checking available stock (stock - reserved)
+productSchema.virtual('availableStock').get(function() {
+  return this.inventory.stock - this.inventory.reservedStock;
+});
+
 // Virtual for checking if product is low stock
 productSchema.virtual('isLowStock').get(function() {
-  return this.inventory.stock > 0 && this.inventory.stock <= this.inventory.lowStockThreshold;
+  return this.availableStock > 0 && this.availableStock <= this.inventory.lowStockThreshold;
 });
 
 // Virtual for checking if product is available for pre-order
 productSchema.virtual('isAvailableForPreOrder').get(function() {
   return this.productType !== 'ready' && this.growingDetails.currentStage !== 'ready';
 });
+
+// Method to reserve stock
+productSchema.methods.reserveStock = async function(quantity) {
+  if (this.availableStock < quantity) {
+    throw new Error(`Insufficient stock. Available: ${this.availableStock}, Requested: ${quantity}`);
+  }
+  
+  this.inventory.reservedStock += quantity;
+  return await this.save();
+};
+
+// Method to release reserved stock
+productSchema.methods.releaseReservedStock = async function(quantity) {
+  this.inventory.reservedStock = Math.max(0, this.inventory.reservedStock - quantity);
+  return await this.save();
+};
+
+// Method to commit reserved stock (convert to actual sale)
+productSchema.methods.commitReservedStock = async function(quantity) {
+  if (this.inventory.reservedStock < quantity) {
+    throw new Error(`Not enough reserved stock to commit`);
+  }
+  
+  this.inventory.reservedStock -= quantity;
+  this.inventory.stock -= quantity;
+  this.sales.totalSold += quantity;
+  
+  return await this.save();
+};
 
 export default mongoose.model('Product', productSchema);

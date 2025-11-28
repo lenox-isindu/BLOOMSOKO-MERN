@@ -1,43 +1,38 @@
-
 import express from 'express';
 import Cart from '../models/Cart.js';
 import Product from '../models/Product.js';
+import inventoryService from '../services/inventoryService.js';
 
 const router = express.Router();
 
-// Helper to get user ID from request (authenticated or demo)
+// Helper to get user ID from request
 const getUserId = (req) => {
-    // 🔥 CRITICAL: Priority 1 - Authenticated user from token
-    if (req.user && req.user._id) {
-        console.log('🔐 Using authenticated user ID:', req.user._id);
-        return req.user._id;
-    }
-    
-    // Priority 2 - User ID from header (for authenticated requests)
-    if (req.headers.userid && req.headers.userid.startsWith('66')) {
-        console.log('🔐 Using header user ID (likely authenticated):', req.headers.userid);
-        return req.headers.userid;
-    }
-    
-    // Priority 3 - Demo user from header
-    if (req.headers.userid) {
-        console.log('👤 Using demo user ID from header:', req.headers.userid);
-        return req.headers.userid;
-    }
-    
-    // Priority 4 - User ID from header (backward compatibility)
-    if (req.headers.userId) {
-        console.log('👤 Using userId from header:', req.headers.userId);
-        return req.headers.userId;
-    }
-    
-    // Fallback: Generate demo user
-    const demoUserId = `demo-user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    console.log('👤 Generated new demo user ID:', demoUserId);
-    return demoUserId;
+  if (req.user && req.user._id) {
+    console.log('🔐 Using authenticated user ID:', req.user._id);
+    return req.user._id;
+  }
+  
+  if (req.headers.userid && req.headers.userid.startsWith('66')) {
+    console.log('🔐 Using header user ID (likely authenticated):', req.headers.userid);
+    return req.headers.userid;
+  }
+  
+  if (req.headers.userid) {
+    console.log('👤 Using demo user ID from header:', req.headers.userid);
+    return req.headers.userid;
+  }
+  
+  if (req.headers.userId) {
+    console.log('👤 Using userId from header:', req.headers.userId);
+    return req.headers.userId;
+  }
+  
+  const demoUserId = `demo-user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  console.log('👤 Generated new demo user ID:', demoUserId);
+  return demoUserId;
 };
 
-// Get user's cart - supports both auth and demo users
+// Get user's cart
 router.get('/', async (req, res) => {
   try {
     const userId = getUserId(req);
@@ -60,8 +55,7 @@ router.get('/', async (req, res) => {
     res.status(500).json({ message: 'Error fetching cart', error: error.message });
   }
 });
-
-// routes/cart.js - Fix the add to cart route
+// routes/cart.js - FIXED VERSION
 router.post('/add', async (req, res) => {
   try {
     const { productId, quantity = 1, isBooking = false } = req.body;
@@ -69,7 +63,7 @@ router.post('/add', async (req, res) => {
 
     console.log('🛒 Adding to cart:', { userId, productId, quantity, isBooking });
 
-    // Get product details with inventory
+    // Validate product exists
     const product = await Product.findById(productId);
     if (!product) {
       console.log('❌ Product not found:', productId);
@@ -79,39 +73,40 @@ router.post('/add', async (req, res) => {
       });
     }
 
-    // Find or create cart FIRST
+    console.log('📊 Product before reservation:', {
+      productId: product._id,
+      name: product.name,
+      stock: product.inventory.stock,
+      reservedStock: product.inventory.reservedStock,
+      availableStock: product.inventory.stock - (product.inventory.reservedStock || 0)
+    });
+
+    // Find or create cart
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
       cart = new Cart({ user: userId, items: [] });
       console.log('✅ Created new cart for user:', userId);
     }
 
-    // 🔥 CRITICAL: Real-time inventory check for regular purchases
+    // 🔥 FIXED: ATOMIC INVENTORY RESERVATION
     if (!isBooking) {
-      if (product.inventory < quantity) {
+      try {
+        await inventoryService.reserveStockAtomic(productId, quantity);
+        console.log('✅ Stock reserved successfully');
+        
+        // Verify the reservation worked
+        const updatedProduct = await Product.findById(productId);
+        console.log('📊 Product after reservation:', {
+          stock: updatedProduct.inventory.stock,
+          reservedStock: updatedProduct.inventory.reservedStock,
+          availableStock: updatedProduct.inventory.stock - (updatedProduct.inventory.reservedStock || 0)
+        });
+      } catch (error) {
+        console.log('❌ Stock reservation failed:', error.message);
         return res.status(400).json({ 
           success: false,
-          message: `Only ${product.inventory} items available in stock`,
-          availableStock: product.inventory
+          message: error.message
         });
-      }
-
-      // Check current cart quantity + new quantity doesn't exceed inventory
-      const existingCartItem = cart.items.find(
-        item => item.product.toString() === productId && !item.isBooking
-      );
-      
-      if (existingCartItem) {
-        const totalRequestedQuantity = existingCartItem.quantity + quantity;
-        if (totalRequestedQuantity > product.inventory) {
-          const availableToAdd = product.inventory - existingCartItem.quantity;
-          return res.status(400).json({ 
-            success: false,
-            message: `Cannot add more than ${availableToAdd} items. You already have ${existingCartItem.quantity} in cart.`,
-            availableToAdd,
-            currentInCart: existingCartItem.quantity
-          });
-        }
       }
     }
 
@@ -123,6 +118,7 @@ router.post('/add', async (req, res) => {
     if (existingItemIndex > -1) {
       // Update quantity if item exists
       cart.items[existingItemIndex].quantity += quantity;
+      cart.items[existingItemIndex].stockReserved = !isBooking;
       console.log('✅ Updated existing item quantity to:', cart.items[existingItemIndex].quantity);
     } else {
       // Add new item
@@ -130,7 +126,8 @@ router.post('/add', async (req, res) => {
         product: productId,
         quantity,
         isBooking,
-        price: product.price
+        price: product.price,
+        stockReserved: !isBooking
       });
       console.log('✅ Added new item to cart');
     }
@@ -157,9 +154,8 @@ router.post('/add', async (req, res) => {
     });
   }
 });
-// routes/cart.js - Update the update quantity route
 
-// routes/cart.js - Fix the update quantity route
+// Update cart item quantity
 router.put('/update/:itemId', async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -186,19 +182,39 @@ router.put('/update/:itemId', async (req, res) => {
       });
     }
 
-    // 🔥 CRITICAL: Inventory validation for regular purchases
-    if (!item.isBooking && item.product) {
-      if (quantity > item.product.inventory) {
-        return res.status(400).json({ 
-          success: false,
-          message: `Only ${item.product.inventory} items available in stock`,
-          availableStock: item.product.inventory
-        });
+    const quantityChange = quantity - item.quantity;
+
+    // Handle inventory updates for regular purchases
+    if (!item.isBooking && quantityChange !== 0) {
+      if (quantityChange > 0) {
+        // Increasing quantity - reserve more stock
+        try {
+          await inventoryService.reserveStockAtomic(item.product._id, quantityChange);
+        } catch (error) {
+          return res.status(400).json({ 
+            success: false,
+            message: error.message
+          });
+        }
+      } else if (quantityChange < 0) {
+        // Decreasing quantity - release some stock
+        try {
+          await inventoryService.releaseStockAtomic(item.product._id, Math.abs(quantityChange));
+        } catch (error) {
+          console.error('Error releasing stock:', error);
+        }
       }
     }
 
     if (quantity < 1) {
       // Remove item if quantity is 0
+      if (!item.isBooking && item.stockReserved) {
+        try {
+          await inventoryService.releaseStockAtomic(item.product._id, item.quantity);
+        } catch (error) {
+          console.error('Error releasing stock on remove:', error);
+        }
+      }
       cart.items.pull({ _id: itemId });
       console.log('✅ Removed item from cart (quantity 0)');
     } else {
@@ -224,7 +240,7 @@ router.put('/update/:itemId', async (req, res) => {
   }
 });
 
-// Remove item from cart
+// Remove item from cart with inventory release
 router.delete('/remove/:itemId', async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -236,6 +252,22 @@ router.delete('/remove/:itemId', async (req, res) => {
     if (!cart) {
       console.log('❌ Cart not found for user:', userId);
       return res.status(404).json({ message: 'Cart not found' });
+    }
+
+    const item = cart.items.id(itemId);
+    if (!item) {
+      console.log('❌ Item not found in cart:', itemId);
+      return res.status(404).json({ message: 'Item not found in cart' });
+    }
+
+    // Release reserved stock if applicable
+    if (!item.isBooking && item.stockReserved) {
+      try {
+        await inventoryService.releaseStockAtomic(item.product, item.quantity);
+        console.log('✅ Released reserved stock for removed item');
+      } catch (error) {
+        console.error('Error releasing stock on remove:', error);
+      }
     }
 
     cart.items.pull({ _id: itemId });
@@ -266,7 +298,7 @@ router.get('/count', async (req, res) => {
   }
 });
 
-// Clear cart
+// Clear cart with inventory release
 router.delete('/clear', async (req, res) => {
   try {
     const userId = getUserId(req);
@@ -275,15 +307,68 @@ router.delete('/clear', async (req, res) => {
 
     const cart = await Cart.findOne({ user: userId });
     if (cart) {
+      // Release all reserved stock
+      for (const item of cart.items) {
+        if (!item.isBooking && item.stockReserved) {
+          try {
+            await inventoryService.releaseStockAtomic(item.product, item.quantity);
+          } catch (error) {
+            console.error('Error releasing stock for item:', error);
+          }
+        }
+      }
+      
       cart.items = [];
       await cart.save();
-      console.log('✅ Cart cleared successfully');
+      console.log('✅ Cart cleared successfully with stock release');
     }
     
     res.json({ message: 'Cart cleared successfully' });
   } catch (error) {
     console.error('❌ Error clearing cart:', error);
     res.status(500).json({ message: 'Error clearing cart', error: error.message });
+  }
+});
+
+// Reserve stock for entire cart (call before checkout)
+router.post('/reserve-stock', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    
+    console.log('🔒 Reserving stock for cart of user:', userId);
+
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Cart is empty' 
+      });
+    }
+
+    // Try to reserve stock for all items
+    try {
+      await cart.reserveStockForCart();
+      console.log('✅ Stock reserved for entire cart');
+      
+      res.json({
+        success: true,
+        message: 'Stock reserved successfully',
+        cart
+      });
+    } catch (error) {
+      console.error('❌ Failed to reserve stock:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error reserving stock:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error reserving stock', 
+      error: error.message 
+    });
   }
 });
 

@@ -30,7 +30,7 @@ const AdminSidebar = () => {
           gap: 'var(--space-3)',
           fontWeight: '700'
         }}>
-          <span style={{ color: 'var(--accent-gold)' }}>🌺</span>
+          <span style={{ color: 'var(--accent-gold)' }}></span>
           <span>
             <span style={{ color: 'var(--primary-color)' }}>Bloom</span>
             <span style={{ color: 'var(--accent-gold)' }}>Soko</span>

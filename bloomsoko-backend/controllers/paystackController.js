@@ -402,6 +402,20 @@ export const verifyPayment = async (req, res) => {
       error: error.response?.data?.message || error.message
     });
   }
+   try {
+    for (const item of order.items) {
+      if (!item.isBooking) {
+        await inventoryService.commitStockAtomic(
+          item.product?._id || item.product, 
+          item.quantity
+        );
+        console.log(`✅ Committed ${item.quantity} units of ${item.product?.name || 'product'}`);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error committing stock:', error);
+    // Don't fail the entire order if stock commit fails, but log it
+  }
 };
 
 // ✅ UPDATED: Webhook for Paystack events to handle new reference system

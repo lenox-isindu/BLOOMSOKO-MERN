@@ -1,4 +1,4 @@
-// controllers/orderController.js
+// controllers/orderController.js - UPDATED FOR 3 STATUSES
 import Order from '../models/Order.js';
 import Cart from '../models/Cart.js';
 import { sendEmail } from './paystackController.js';
@@ -6,7 +6,7 @@ import { sendEmail } from './paystackController.js';
 // Get all orders (for admin)
 export const getAllOrders = async (req, res) => {
   try {
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status, page = 1, limit = 50 } = req.query;
     
     let query = {};
     if (status && status !== 'all') {
@@ -44,7 +44,6 @@ export const getAllOrders = async (req, res) => {
 // Get user's orders
 export const getUserOrders = async (req, res) => {
   try {
-    // Use authenticated user ID from req.user (set by auth middleware)
     const userId = req.user?.id || req.user?._id;
     
     if (!userId) {
@@ -130,18 +129,19 @@ export const getOrder = async (req, res) => {
   }
 };
 
-// Update order status (admin only)
+// Update order status (admin only) - UPDATED FOR 3 STATUSES
 export const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, notes } = req.body;
 
-    const validStatuses = ['pending', 'processing', 'ready_for_pickup', 'picked_up', 'cancelled'];
+    // ONLY 3 STATUSES: pending, completed, cancelled
+    const validStatuses = ['pending', 'completed', 'cancelled'];
     
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status'
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
       });
     }
 
@@ -159,11 +159,6 @@ export const updateOrderStatus = async (req, res) => {
     
     await order.save();
 
-    // Send status update email if order is ready for pickup
-    if (status === 'ready_for_pickup') {
-      await sendReadyForPickupEmail(order);
-    }
-
     res.json({
       success: true,
       message: 'Order status updated successfully',
@@ -180,7 +175,7 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Cancel order
+// Cancel order - UPDATED FOR 3 STATUSES
 export const cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -229,31 +224,42 @@ export const cancelOrder = async (req, res) => {
   }
 };
 
-// Get order statistics (admin)
+// Get order statistics (admin) - UPDATED FOR 3 STATUSES
 export const getOrderStats = async (req, res) => {
   try {
     const totalOrders = await Order.countDocuments();
     const pendingOrders = await Order.countDocuments({ status: 'pending' });
-    const processingOrders = await Order.countDocuments({ status: 'processing' });
-    const readyOrders = await Order.countDocuments({ status: 'ready_for_pickup' });
-    const completedOrders = await Order.countDocuments({ status: 'picked_up' });
+    const completedOrders = await Order.countDocuments({ status: 'completed' });
+    const cancelledOrders = await Order.countDocuments({ status: 'cancelled' });
     
-    // Total revenue
+    // Total revenue from completed AND paid orders
     const revenueResult = await Order.aggregate([
-      { $match: { paymentStatus: 'paid' } },
+      { 
+        $match: { 
+          status: 'completed',
+          paymentStatus: 'paid' 
+        } 
+      },
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]);
     
     const totalRevenue = revenueResult[0]?.total || 0;
+
+    console.log('📊 Order Stats:', {
+      totalOrders,
+      pendingOrders,
+      completedOrders,
+      cancelledOrders,
+      totalRevenue
+    });
 
     res.json({
       success: true,
       data: {
         totalOrders,
         pendingOrders,
-        processingOrders,
-        readyOrders,
         completedOrders,
+        cancelledOrders,
         totalRevenue
       }
     });
@@ -268,27 +274,4 @@ export const getOrderStats = async (req, res) => {
   }
 };
 
-// Send ready for pickup email
-const sendReadyForPickupEmail = async (order) => {
-  try {
-    const emailData = {
-      to: order.recipient.email,
-      subject: `Your Order is Ready for Pickup - ${order.orderNumber}`,
-      template: 'order-ready-pickup',
-      context: {
-        orderNumber: order.orderNumber,
-        recipientName: order.recipient.fullName,
-        pickupStation: order.pickup.stationDetails.address,
-        stationContact: order.pickup.stationDetails.contact,
-        operatingHours: order.pickup.stationDetails.hours,
-        items: order.items.map(item => item.name).join(', ')
-      }
-    };
-
-    await sendEmail(emailData);
-    console.log(`Ready for pickup email sent to ${order.recipient.email}`);
-    
-  } catch (error) {
-    console.error('Ready for pickup email error:', error);
-  }
-};
+// Remove the sendReadyForPickupEmail function since we don't have ready_for_pickup status

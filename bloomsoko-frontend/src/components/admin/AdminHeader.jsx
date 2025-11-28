@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import Notifications from './Notifications.jsx'; // Add this import
+import Notifications from './Notifications.jsx'; 
 
 const AdminHeader = () => {
   const navigate = useNavigate();

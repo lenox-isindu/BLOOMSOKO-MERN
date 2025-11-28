@@ -6,63 +6,64 @@ const UsersManagement = () => {
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalUsers: 0,
+    hasNext: false,
+    hasPrev: false
+  });
 
-  // Mock data - Replace with actual API calls
-  const mockUsers = [
-    {
-      _id: '1',
-      name: 'John Doe',
-      email: 'john@example.com',
-      phone: '+254712345678',
-      role: 'customer',
-      status: 'active',
-      createdAt: '2024-01-15T10:30:00Z',
-      ordersCount: 5,
-      totalSpent: 12500
-    },
-    {
-      _id: '2',
-      name: 'Jane Smith',
-      email: 'jane@example.com',
-      phone: '+254723456789',
-      role: 'customer',
-      status: 'active',
-      createdAt: '2024-01-20T14:45:00Z',
-      ordersCount: 3,
-      totalSpent: 8400
-    },
-    {
-      _id: '3',
-      name: 'Mike Johnson',
-      email: 'mike@example.com',
-      phone: '+254734567890',
-      role: 'customer',
-      status: 'inactive',
-      createdAt: '2024-01-10T09:15:00Z',
-      ordersCount: 1,
-      totalSpent: 3500
-    }
-  ];
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
-  // Fetch users
-  const fetchUsers = async () => {
+  // Fetch users from backend
+  const fetchUsers = async (page = 1, search = '') => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await fetch('http://localhost:5000/api/admin/users');
-      // const data = await response.json();
-      // setUsers(data.users || data.data || []);
+      const token = localStorage.getItem('adminToken');
       
-      // Using mock data for now
-      setTimeout(() => {
-        setUsers(mockUsers);
+      if (!token) {
+        toast.error('Authentication required');
         setLoading(false);
-      }, 1000);
-      
+        return;
+      }
+
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: '50', // Increased limit to show more users
+        ...(search && { search })
+      });
+
+      const response = await fetch(`${API_URL}/admin/users?${queryParams}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setUsers(data.data.users || []);
+        setPagination(data.data.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          totalUsers: data.data.users?.length || 0,
+          hasNext: false,
+          hasPrev: false
+        });
+      } else {
+        throw new Error(data.message || 'Failed to fetch users');
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
-      toast.error('Failed to load users');
-      setUsers(mockUsers); // Fallback to mock data
+      toast.error(error.message || 'Failed to load users');
+      setUsers([]);
+    } finally {
       setLoading(false);
     }
   };
@@ -71,32 +72,57 @@ const UsersManagement = () => {
     fetchUsers();
   }, []);
 
-  // Filter users based on search
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.phone.includes(searchTerm)
-  );
+  // Handle search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchUsers(1, searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   // Update user status
   const updateUserStatus = async (userId, newStatus) => {
     try {
-      // TODO: Replace with actual API call
-      // await fetch(`http://localhost:5000/api/admin/users/${userId}/status`, {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ status: newStatus })
-      // });
-      
-      setUsers(prev => prev.map(user =>
-        user._id === userId ? { ...user, status: newStatus } : user
-      ));
-      
-      toast.success(`User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`);
-      setSelectedUser(null);
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_URL}/admin/users/${userId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ isActive: newStatus === 'active' })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update the user in the local state
+        setUsers(prev => prev.map(user =>
+          user._id === userId ? { 
+            ...user, 
+            isActive: newStatus === 'active',
+            status: newStatus === 'active' ? 'active' : 'inactive'
+          } : user
+        ));
+        
+        // If selected user is being updated, update that too
+        if (selectedUser && selectedUser._id === userId) {
+          setSelectedUser(prev => ({
+            ...prev,
+            isActive: newStatus === 'active',
+            status: newStatus === 'active' ? 'active' : 'inactive'
+          }));
+        }
+        
+        toast.success(data.message || `User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`);
+        setSelectedUser(null);
+      } else {
+        throw new Error(data.message || 'Failed to update user status');
+      }
     } catch (error) {
       console.error('Error updating user status:', error);
-      toast.error('Failed to update user status');
+      toast.error(error.message || 'Failed to update user status');
     }
   };
 
@@ -112,6 +138,16 @@ const UsersManagement = () => {
   // Format currency
   const formatCurrency = (amount) => {
     return `KSh ${amount?.toLocaleString() || '0'}`;
+  };
+
+  // Get full name
+  const getFullName = (user) => {
+    return `${user.firstName || ''} ${user.lastName || ''}`.trim();
+  };
+
+  // Get status for display (maps isActive boolean to status string)
+  const getStatus = (user) => {
+    return user.isActive ? 'active' : 'inactive';
   };
 
   return (
@@ -146,7 +182,7 @@ const UsersManagement = () => {
       }}>
         <div className="stat-card gold">
           <div className="stat-value" style={{ color: 'var(--accent-gold)' }}>
-            {users.length}
+            {pagination.totalUsers}
           </div>
           <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
             Total Users
@@ -155,7 +191,7 @@ const UsersManagement = () => {
         
         <div className="stat-card">
           <div className="stat-value" style={{ color: 'var(--success)' }}>
-            {users.filter(u => u.status === 'active').length}
+            {users.filter(u => u.isActive).length}
           </div>
           <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
             Active Users
@@ -164,7 +200,7 @@ const UsersManagement = () => {
         
         <div className="stat-card">
           <div className="stat-value" style={{ color: 'var(--warning)' }}>
-            {users.filter(u => u.status === 'inactive').length}
+            {users.filter(u => !u.isActive).length}
           </div>
           <div style={{ color: 'var(--text-light)', fontSize: 'var(--font-size-base)', fontWeight: '500' }}>
             Inactive Users
@@ -195,14 +231,14 @@ const UsersManagement = () => {
             gap: 'var(--space-2)'
           }}>
             <span style={{ color: 'var(--accent-gold)' }}>👥</span>
-            All Users ({filteredUsers.length})
+            All Users ({pagination.totalUsers})
           </h3>
           
           {/* Search Box */}
           <div style={{ position: 'relative' }}>
             <input
               type="text"
-              placeholder="Search users..."
+              placeholder="Search users by name, email, or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="form-input"
@@ -232,7 +268,7 @@ const UsersManagement = () => {
             }}>
               Loading users...
             </div>
-          ) : filteredUsers.length === 0 ? (
+          ) : users.length === 0 ? (
             <div style={{ 
               textAlign: 'center', 
               padding: 'var(--space-8)',
@@ -261,7 +297,7 @@ const UsersManagement = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => (
+                  {users.map((user) => (
                     <tr 
                       key={user._id}
                       style={{ 
@@ -289,11 +325,11 @@ const UsersManagement = () => {
                             fontWeight: '600',
                             fontSize: 'var(--font-size-sm)'
                           }}>
-                            {user.name.charAt(0).toUpperCase()}
+                            {getFullName(user).charAt(0).toUpperCase()}
                           </div>
                           <div>
                             <div style={{ fontWeight: '600', color: 'var(--text-dark)' }}>
-                              {user.name}
+                              {getFullName(user)}
                             </div>
                             <div style={{ 
                               fontSize: 'var(--font-size-sm)', 
@@ -311,7 +347,7 @@ const UsersManagement = () => {
                           {user.email}
                         </div>
                         <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-light)' }}>
-                          {user.phone}
+                          {user.phone || 'No phone'}
                         </div>
                       </td>
                       
@@ -338,7 +374,7 @@ const UsersManagement = () => {
                       <td style={{ padding: 'var(--space-4)' }}>
                         <span 
                           style={{ 
-                            backgroundColor: user.status === 'active' ? 'var(--success)' : 'var(--error)',
+                            backgroundColor: getStatus(user) === 'active' ? 'var(--success)' : 'var(--error)',
                             color: 'white',
                             padding: 'var(--space-1) var(--space-3)',
                             borderRadius: 'var(--radius-sm)',
@@ -347,7 +383,7 @@ const UsersManagement = () => {
                             textTransform: 'capitalize'
                           }}
                         >
-                          {user.status}
+                          {getStatus(user)}
                         </span>
                       </td>
                       
@@ -367,7 +403,7 @@ const UsersManagement = () => {
                             View
                           </button>
                           
-                          {user.status === 'active' ? (
+                          {getStatus(user) === 'active' ? (
                             <button 
                               className="btn btn-warning"
                               style={{ padding: 'var(--space-2) var(--space-3)', fontSize: 'var(--font-size-sm)' }}
@@ -401,6 +437,10 @@ const UsersManagement = () => {
           user={selectedUser}
           onClose={() => setSelectedUser(null)}
           onStatusUpdate={updateUserStatus}
+          getFullName={getFullName}
+          getStatus={getStatus}
+          formatDate={formatDate}
+          formatCurrency={formatCurrency}
         />
       )}
     </div>
@@ -408,21 +448,7 @@ const UsersManagement = () => {
 };
 
 // User Details Modal Component
-const UserDetailsModal = ({ user, onClose, onStatusUpdate }) => {
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const formatCurrency = (amount) => {
-    return `KSh ${amount?.toLocaleString() || '0'}`;
-  };
-
+const UserDetailsModal = ({ user, onClose, onStatusUpdate, getFullName, getStatus, formatDate, formatCurrency }) => {
   return (
     <div style={{
       position: 'fixed',
@@ -455,7 +481,7 @@ const UserDetailsModal = ({ user, onClose, onStatusUpdate }) => {
             gap: 'var(--space-2)'
           }}>
             <span style={{ color: 'var(--accent-gold)' }}>👤</span>
-            User Details: {user.name}
+            User Details: {getFullName(user)}
           </h3>
           <button 
             onClick={onClose}
@@ -489,13 +515,13 @@ const UserDetailsModal = ({ user, onClose, onStatusUpdate }) => {
                 fontSize: 'var(--font-size-xl)',
                 margin: '0 auto var(--space-4)'
               }}>
-                {user.name.charAt(0).toUpperCase()}
+                {getFullName(user).charAt(0).toUpperCase()}
               </div>
               <h4 style={{ marginBottom: 'var(--space-2)', color: 'var(--text-dark)' }}>
-                {user.name}
+                {getFullName(user)}
               </h4>
               <p style={{ color: 'var(--text-light)', margin: 0 }}>
-                {user.role} • {user.status === 'active' ? 'Active' : 'Inactive'} User
+                {user.role} • {getStatus(user) === 'active' ? 'Active' : 'Inactive'} User
               </p>
             </div>
 
@@ -514,11 +540,16 @@ const UserDetailsModal = ({ user, onClose, onStatusUpdate }) => {
                   <strong>Email:</strong> {user.email}
                 </div>
                 <div>
-                  <strong>Phone:</strong> {user.phone}
+                  <strong>Phone:</strong> {user.phone || 'Not provided'}
                 </div>
                 <div>
                   <strong>Member Since:</strong> {formatDate(user.createdAt)}
                 </div>
+                {user.lastLogin && (
+                  <div>
+                    <strong>Last Login:</strong> {formatDate(user.lastLogin)}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -568,7 +599,7 @@ const UserDetailsModal = ({ user, onClose, onStatusUpdate }) => {
                 Account Management
               </h4>
               <div style={{ textAlign: 'center' }}>
-                {user.status === 'active' ? (
+                {getStatus(user) === 'active' ? (
                   <button 
                     className="btn btn-warning"
                     onClick={() => onStatusUpdate(user._id, 'inactive')}
@@ -588,7 +619,7 @@ const UserDetailsModal = ({ user, onClose, onStatusUpdate }) => {
                   color: 'var(--text-light)',
                   marginTop: 'var(--space-2)'
                 }}>
-                  {user.status === 'active' 
+                  {getStatus(user) === 'active' 
                     ? 'Deactivating will prevent this user from placing new orders.'
                     : 'Activating will allow this user to place orders again.'
                   }

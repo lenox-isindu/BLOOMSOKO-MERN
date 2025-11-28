@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { productAPI, categoryAPI } from '../services/api.js';
-import Navbar from '../components/Navbar.jsx'; // Import the Navbar
+import Navbar from '../components/Navbar.jsx'; 
 import styles from './Home.module.css';
+import PromotionsDisplay from '../components/PromotionsDisplay';
 
 const Home = () => {
   const [featuredProducts, setFeaturedProducts] = useState([]);
@@ -103,6 +104,9 @@ const Home = () => {
           </div>
         </div>
       </section>
+       {/*PROMOTIONS  */}
+      <PromotionsDisplay position="top_banner" />
+      <PromotionsDisplay position="hero" />
 
       {/* Categories Section */}
       <section className={styles.categoriesSection}>
@@ -137,6 +141,7 @@ const Home = () => {
           </div>
         )}
       </section>
+      <PromotionsDisplay position="product_page" />
 
       {/* Stats Section */}
       <section className={styles.statsSection}>

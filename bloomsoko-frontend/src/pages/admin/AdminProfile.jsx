@@ -21,40 +21,68 @@ const AdminProfile = () => {
     fetchAdminProfile();
   }, []);
 
-  const fetchAdminProfile = async () => {
-    try {
-      const token = localStorage.getItem('adminToken');
-      if (!token) return;
-
-      const response = await fetch(`${API_URL}/auth/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        const user = data.data.user;
-        setProfile(prev => ({
-          ...prev,
-          firstName: user.firstName || '',
-          lastName: user.lastName || '',
-          email: user.email || '',
-          phone: user.phone || ''
-        }));
-      } else {
-        toast.error('Failed to load profile');
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      toast.error('Error loading profile');
-    } finally {
+ const fetchAdminProfile = async () => {
+  try {
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
       setProfileLoading(false);
+      return;
     }
-  };
 
+    const response = await fetch(`${API_URL}/auth/profile`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    // Check if response is ok
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    console.log('🔍 Full API Response:', data);
+    console.log('🔍 Response keys:', Object.keys(data));
+
+    // Try different possible response structures
+    let user = null;
+    
+    if (data.data && data.data.user) {
+      // Structure: { data: { user: { ... } } }
+      user = data.data.user;
+    } else if (data.data) {
+      // Structure: { data: { ... } }
+      user = data.data;
+    } else if (data.user) {
+      // Structure: { user: { ... } }
+      user = data.user;
+    } else {
+      // Structure: direct user object { ... }
+      user = data;
+    }
+
+    console.log('🔍 Extracted user:', user);
+
+    if (user) {
+      setProfile(prev => ({
+        ...prev,
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        email: user.email || '',
+        phone: user.phone || ''
+      }));
+    } else {
+      toast.error('No user data found in response');
+    }
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    toast.error('Error loading profile');
+  } finally {
+    setProfileLoading(false);
+  }
+};
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setProfile(prev => ({
@@ -64,48 +92,53 @@ const AdminProfile = () => {
   };
 
   const handleProfileUpdate = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-      const token = localStorage.getItem('adminToken');
-      const response = await fetch(`${API_URL}/auth/profile`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          phone: profile.phone
-        })
-      });
+  try {
+    const token = localStorage.getItem('adminToken');
+    const response = await fetch(`${API_URL}/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        phone: profile.phone
+      })
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (data.success) {
-        // Update localStorage with new data
-        const updatedUser = {
-          ...JSON.parse(localStorage.getItem('adminUser') || '{}'),
-          firstName: data.data.user.firstName,
-          lastName: data.data.user.lastName,
-          phone: data.data.user.phone
-        };
-        
-        localStorage.setItem('adminUser', JSON.stringify(updatedUser));
-        toast.success('Profile updated successfully!');
-      } else {
-        toast.error(data.message || 'Failed to update profile');
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
+    console.log('Update Profile Response:', data);
+
+    if (data) {
+      // Handle different response structures for update
+      const updatedUser = data.data || data.user || data;
+      
+      // Update localStorage with new data
+      const currentUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+      const newUserData = {
+        ...currentUser,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        phone: updatedUser.phone
+      };
+      
+      localStorage.setItem('adminUser', JSON.stringify(newUserData));
+      toast.success('Profile updated successfully!');
+    } else {
       toast.error('Failed to update profile');
-    } finally {
-      setLoading(false);
     }
-  };
-
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    toast.error('Failed to update profile');
+  } finally {
+    setLoading(false);
+  }
+};
   const handlePasswordChange = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -160,7 +193,12 @@ const AdminProfile = () => {
   };
 
   const getAdminUser = () => {
-    return JSON.parse(localStorage.getItem('adminUser') || '{}');
+    try {
+      return JSON.parse(localStorage.getItem('adminUser') || '{}');
+    } catch (error) {
+      console.error('Error parsing adminUser from localStorage:', error);
+      return {};
+    }
   };
 
   const adminUser = getAdminUser();
@@ -214,7 +252,7 @@ const AdminProfile = () => {
                   <input
                     type="text"
                     name="firstName"
-                    value={profile.firstName}
+                    value={profile.firstName || ''}
                     onChange={handleInputChange}
                     className="form-input"
                     placeholder="Enter your first name"
@@ -227,7 +265,7 @@ const AdminProfile = () => {
                   <input
                     type="text"
                     name="lastName"
-                    value={profile.lastName}
+                    value={profile.lastName || ''}
                     onChange={handleInputChange}
                     className="form-input"
                     placeholder="Enter your last name"
@@ -240,12 +278,12 @@ const AdminProfile = () => {
                   <input
                     type="email"
                     name="email"
-                    value={profile.email}
+                    value={profile.email || ''}
                     onChange={handleInputChange}
                     className="form-input"
                     placeholder="Enter your email"
                     required
-                    disabled // Email shouldn't be changed usually
+                    disabled
                   />
                   <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-light)', marginTop: 'var(--space-1)' }}>
                     Email cannot be changed
@@ -257,7 +295,7 @@ const AdminProfile = () => {
                   <input
                     type="tel"
                     name="phone"
-                    value={profile.phone}
+                    value={profile.phone || ''}
                     onChange={handleInputChange}
                     className="form-input"
                     placeholder="Enter your phone number"
@@ -299,7 +337,7 @@ const AdminProfile = () => {
                   <input
                     type="password"
                     name="currentPassword"
-                    value={profile.currentPassword}
+                    value={profile.currentPassword || ''}
                     onChange={handleInputChange}
                     className="form-input"
                     placeholder="Enter current password"
@@ -312,7 +350,7 @@ const AdminProfile = () => {
                   <input
                     type="password"
                     name="newPassword"
-                    value={profile.newPassword}
+                    value={profile.newPassword || ''}
                     onChange={handleInputChange}
                     className="form-input"
                     placeholder="Enter new password"
@@ -329,7 +367,7 @@ const AdminProfile = () => {
                   <input
                     type="password"
                     name="confirmPassword"
-                    value={profile.confirmPassword}
+                    value={profile.confirmPassword || ''}
                     onChange={handleInputChange}
                     className="form-input"
                     placeholder="Confirm new password"
@@ -380,10 +418,10 @@ const AdminProfile = () => {
                   fontSize: 'var(--font-size-xl)',
                   margin: '0 auto var(--space-3)'
                 }}>
-                  {profile.firstName?.charAt(0)?.toUpperCase() || 'A'}
+                  {(profile.firstName || 'A').charAt(0).toUpperCase()}
                 </div>
                 <h4 style={{ marginBottom: 'var(--space-1)', color: 'var(--text-dark)' }}>
-                  {profile.firstName} {profile.lastName}
+                  {profile.firstName || ''} {profile.lastName || ''}
                 </h4>
                 <p style={{ color: 'var(--text-light)', margin: 0 }}>
                   {adminUser.role === 'admin' ? 'Administrator' : 'User'}
@@ -401,7 +439,7 @@ const AdminProfile = () => {
                   <strong>Last Login:</strong> {new Date().toLocaleDateString()}
                 </div>
                 <div>
-                  <strong>Email:</strong> {profile.email}
+                  <strong>Email:</strong> {profile.email || ''}
                 </div>
               </div>
 

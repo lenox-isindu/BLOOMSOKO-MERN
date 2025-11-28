@@ -14,6 +14,8 @@ import cartRoutes from './routes/cart.js';
 import orderRoutes from './routes/orders.js'; 
 import paystackRoutes from './routes/paystack.js';
 import promotionRoutes from './routes/promotions.js';
+import adminUsersRoutes from './routes/admin/adminUsers.js';
+import analyticsRoutes from './routes/analytics.js';
 
 dotenv.config();
 
@@ -40,6 +42,7 @@ await connectDB();
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/admin', adminUsersRoutes);
 app.use('/api/admin/products', adminProductRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/upload', uploadRoutes);
@@ -48,6 +51,8 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes); 
 app.use('/api/paystack', paystackRoutes);
 app.use('/api/promotions', promotionRoutes);
+app.use('/api/analytics', analyticsRoutes);
+
 
 app.get('/', (req, res) => {
   res.json({ message: 'Bloomsoko Backend is running!' });

@@ -14,19 +14,39 @@ const CustomerProductDetail = () => {
     const [selectedImage, setSelectedImage] = useState(0);
     const [quantity, setQuantity] = useState(1);
     const [cartCount, setCartCount] = useState(0);
+    const [debugMode] = useState(true); // Added debug mode
 
     const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
     useEffect(() => {
         fetchProduct();
         updateCartCount();
+        
+        // Listen for inventory updates
+        const handleInventoryUpdate = () => {
+            console.log('🔄 Inventory update detected, refreshing product...');
+            fetchProduct();
+        };
+
+        const handleRefreshAllProducts = () => {
+            console.log('🔄 Refreshing product...');
+            fetchProduct();
+        };
+
+        window.addEventListener('inventoryUpdated', handleInventoryUpdate);
+        window.addEventListener('refreshAllProducts', handleRefreshAllProducts);
+        
+        return () => {
+            window.removeEventListener('inventoryUpdated', handleInventoryUpdate);
+            window.removeEventListener('refreshAllProducts', handleRefreshAllProducts);
+        };
     }, [id]);
 
     useEffect(() => {
-    const count = getCartCount();
-    console.log('Current cart count:', count);
-    setCartCount(count || 0);
-}, [getCartCount]);
+        const count = getCartCount();
+        console.log('Current cart count:', count);
+        setCartCount(count || 0);
+    }, [getCartCount]);
 
     const fetchProduct = async () => {
         try {
@@ -41,6 +61,22 @@ const CustomerProductDetail = () => {
             
             const productData = await response.json();
             setProduct(productData);
+            
+            // Debug: Log inventory data
+            if (debugMode && productData) {
+                const availableStock = productData.inventory ? 
+                    (productData.inventory.stock - (productData.inventory.reservedStock || 0)) : 0;
+                
+                console.log('🧪 PRODUCT DETAIL INVENTORY DEBUG:', {
+                    name: productData.name,
+                    id: productData._id,
+                    stock: productData.inventory?.stock,
+                    reservedStock: productData.inventory?.reservedStock,
+                    availableStock: availableStock,
+                    showsInStock: productData.inventory?.stock > 0,
+                    shouldShowAvailable: availableStock > 0
+                });
+            }
         } catch (error) {
             console.error('Error fetching product:', error);
             setError(error.message);
@@ -50,20 +86,39 @@ const CustomerProductDetail = () => {
     };
 
     const updateCartCount = () => {
-    const count = getCartCount();
-    console.log('Updating cart count:', count);
-    setCartCount(count || 0);
-};
-   
+        const count = getCartCount();
+        console.log('Updating cart count:', count);
+        setCartCount(count || 0);
+    };
+
+    // Debug function to test inventory data
+    const testInventoryDebug = () => {
+        if (!product) return;
+        
+        console.log('🧪 MANUAL INVENTORY DEBUG TEST - PRODUCT DETAIL:');
+        const availableStock = product.inventory ? 
+            (product.inventory.stock - (product.inventory.reservedStock || 0)) : 0;
+        
+        console.log('📦 PRODUCT INVENTORY DETAILS:', {
+            name: product.name,
+            id: product._id,
+            stock: product.inventory?.stock,
+            reservedStock: product.inventory?.reservedStock,
+            availableStock: availableStock,
+            showsInStock: product.inventory?.stock > 0,
+            shouldShowAvailable: availableStock > 0,
+            maxQuantity: availableStock
+        });
+        
+        alert('Check browser console for product inventory debug info!');
+    };
+
     const getCategoryClass = (category) => {
-       
         let categoryName = '';
 
-        
         if (typeof category === 'string') {
             categoryName = category;
         } else if (Array.isArray(category)) {
-           
             const first = category[0];
             if (typeof first === 'string') {
                 categoryName = first;
@@ -74,7 +129,6 @@ const CustomerProductDetail = () => {
             categoryName = category.name || '';
         }
 
-        // Ensure we actually have a string
         if (typeof categoryName !== 'string') {
             categoryName = '';
         }
@@ -88,23 +142,19 @@ const CustomerProductDetail = () => {
             'house & garden': 'home',
         };
 
-        //  Safely lowercasing using String() wrapper
         const lowerName = String(categoryName).toLowerCase();
         return categoryMap[lowerName] || 'farm';
     };
 
-   
     const isFarmProduct = (product) => {
         if (!product) return false;
 
         let categoryName = '';
         const category = product.category;
 
-        // Handle all possible shapes of "category"
         if (typeof category === 'string') {
             categoryName = category;
         } else if (Array.isArray(category)) {
-            
             const first = category[0];
             if (typeof first === 'string') {
                 categoryName = first;
@@ -115,25 +165,20 @@ const CustomerProductDetail = () => {
             categoryName = category.name || '';
         }
 
-        
         if (typeof categoryName !== 'string') {
             return false;
         }
 
-        
         const lower = String(categoryName).toLowerCase();
         return lower.includes('agriculture') || lower.includes('farm');
     };
 
-    
     const getCategoryName = (category) => {
         let categoryName = '';
 
-        
         if (typeof category === 'string') {
             categoryName = category;
         } else if (Array.isArray(category)) {
-           
             const first = category[0];
             if (typeof first === 'string') {
                 categoryName = first;
@@ -151,17 +196,50 @@ const CustomerProductDetail = () => {
         return categoryName || 'Uncategorized';
     };
 
+    // Calculate available stock
+    const getAvailableStock = () => {
+        if (!product || !product.inventory) return 0;
+        return product.inventory.stock - (product.inventory.reservedStock || 0);
+    };
+
     const handleAddToCart = () => {
         if (!product) return;
         
+        // Check if user is authenticated
+        const user = localStorage.getItem('bloomsoko-user');
+        if (!user) {
+            navigate('/login', { 
+                state: { from: `/product/${product._id}` },
+                replace: true 
+            });
+            return;
+        }
+
         const categoryName = getCategoryName(product.category);
         const isFarm = isFarmProduct(product);
         const isReady = product.productType === 'ready';
         const shouldBook = isFarm && !isReady;
+        const availableStock = getAvailableStock();
 
-        
+        // Check stock availability for ready products
+        if (isReady && availableStock === 0) {
+            alert('❌ Sorry, this product is out of stock!');
+            return;
+        }
+
+        // Check if quantity exceeds available stock
+        if (isReady && quantity > availableStock) {
+            alert(`❌ Only ${availableStock} units available!`);
+            return;
+        }
+
         addToCart(product, quantity, shouldBook);
         updateCartCount();
+
+        // Refresh product to get updated inventory
+        setTimeout(() => {
+            fetchProduct();
+        }, 500);
 
         const message = shouldBook 
             ? `📅 ${product.name} booked successfully! We'll contact you when ready.`
@@ -198,6 +276,29 @@ const CustomerProductDetail = () => {
         return product.price * quantity;
     };
 
+    // Get product badges
+    const getProductBadges = (product) => {
+        const badges = [];
+        const availableStock = getAvailableStock();
+        
+        if (availableStock <= 0) {
+            badges.push({ text: 'Out of Stock', class: 'outOfStock' });
+        }
+        
+        if (product.productType === 'growing') {
+            badges.push({ text: '🌱 Growing', class: 'growing' });
+        } else if (product.productType === 'pre-order') {
+            badges.push({ text: '📅 Pre-order', class: 'preOrder' });
+        }
+        
+        if (product.flags?.isNew) badges.push({ text: '🆕 New', class: 'new' });
+        if (product.flags?.isLimited) badges.push({ text: '⏰ Limited', class: 'limited' });
+        if (product.flags?.onSale) badges.push({ text: '🏷️ Offer', class: 'sale' });
+        if (product.flags?.isBestSeller) badges.push({ text: '🔥 Best Seller', class: 'bestSeller' });
+        
+        return badges.slice(0, 2);
+    };
+
     if (loading) {
         return (
             <div className={styles.loadingContainer}>
@@ -224,6 +325,8 @@ const CustomerProductDetail = () => {
     const isReady = product.productType === 'ready';
     const buttonText = isFarm && !isReady ? 'Book Now' : 'Add to Cart';
     const growingProgress = getGrowingProgress(product);
+    const availableStock = getAvailableStock();
+    const badges = getProductBadges(product);
 
     const allImages = [
         product.featuredImage,
@@ -232,6 +335,8 @@ const CustomerProductDetail = () => {
 
     return (
         <div className={styles.customerProductDetail}>
+        
+
             {/* Cart Header */}
             <div className={styles.cartHeader}>
                 <Link to="/cart" className={styles.cartLink}>
@@ -261,6 +366,15 @@ const CustomerProductDetail = () => {
                         ) : (
                             <div className={styles.noImage}>No Image Available</div>
                         )}
+                        
+                        {/* Badges on main image */}
+                        <div className={styles.badgeContainer}>
+                            {badges.map((badge, index) => (
+                                <span key={index} className={`${styles.productBadge} ${styles[badge.class]}`}>
+                                    {badge.text}
+                                </span>
+                            ))}
+                        </div>
                     </div>
                     
                     {allImages.length > 1 && (
@@ -343,16 +457,28 @@ const CustomerProductDetail = () => {
                         </div>
                     )}
 
-                    {/* Stock Information */}
+                    {/* Stock Information - UPDATED with proper inventory calculation */}
                     <div className={styles.stockInfo}>
                         {isReady ? (
                             <>
-                                <span className={`${styles.stockStatus} ${product.inventory?.stock > 0 ? styles.inStock : styles.outOfStock}`}>
-                                    {product.inventory?.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                                <span className={`${styles.stockStatus} ${availableStock > 0 ? styles.inStock : styles.outOfStock}`}>
+                                    {availableStock > 0 ? 'In Stock' : 'Out of Stock'}
                                 </span>
-                                {product.inventory?.stock > 0 && (
+                                {availableStock > 0 && (
                                     <span className={styles.stockQuantity}>
-                                        {product.inventory.stock} units available
+                                        {availableStock} units available
+                                        {/* Show detailed inventory info in debug mode */}
+                                        {debugMode && product.inventory?.reservedStock > 0 && (
+                                            <span style={{
+                                                fontSize: '0.8em', 
+                                                color: '#666', 
+                                                display: 'block',
+                                                fontStyle: 'italic',
+                                                marginTop: '5px'
+                                            }}>
+                                                ({product.inventory.stock} total - {product.inventory.reservedStock} reserved)
+                                            </span>
+                                        )}
                                     </span>
                                 )}
                             </>
@@ -388,19 +514,24 @@ const CustomerProductDetail = () => {
                                 <span>{quantity}</span>
                                 <button 
                                     onClick={() => setQuantity(quantity + 1)}
-                                    disabled={isReady && product.inventory?.stock && quantity >= product.inventory.stock}
+                                    disabled={isReady && availableStock && quantity >= availableStock}
                                 >
                                     +
                                 </button>
                             </div>
+                            {isReady && availableStock > 0 && (
+                                <div className={styles.maxQuantityNote}>
+                                    Maximum: {availableStock} units
+                                </div>
+                            )}
                         </div>
 
                         <button 
                             className={`${styles.addToCartButton} ${styles[categoryClass]}`}
                             onClick={handleAddToCart}
-                            disabled={product.flags?.isOutOfStock || (isReady && product.inventory?.stock === 0)}
+                            disabled={availableStock === 0 && isReady}
                         >
-                            {product.flags?.isOutOfStock || (isReady && product.inventory?.stock === 0) 
+                            {availableStock === 0 && isReady
                                 ? 'Out of Stock' 
                                 : `${buttonText} (${quantity})`
                             }

@@ -3,6 +3,7 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import Navbar from '../components/Navbar.jsx';
 import styles from './ProductCatalog.module.css';
+import PromotionsDisplay from '../components/PromotionsDisplay';
 
 const ProductCatalog = () => {
     const [products, setProducts] = useState([]);
@@ -15,6 +16,7 @@ const ProductCatalog = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedFlags, setSelectedFlags] = useState([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [debugMode, setDebugMode] = useState(true);
     
     const { addToCart, getCartCount } = useCart();
     const [cartCount, setCartCount] = useState(0);
@@ -38,128 +40,161 @@ const ProductCatalog = () => {
         setCartCount(getCartCount());
     }, [getCartCount]);
 
-   // Fetch categories from backend - 
-const fetchCategories = async () => {
-    try {
-        console.log(' Fetching categories from:', `${API_URL}/categories`);
+    // Listen for inventory updates
+    useEffect(() => {
+        const handleInventoryUpdate = () => {
+            console.log('🔄 Inventory update detected, refreshing products...');
+            fetchProducts();
+        };
+
+        const handleRefreshAllProducts = () => {
+            console.log('🔄 Refreshing all products...');
+            fetchProducts();
+        };
+
+        window.addEventListener('inventoryUpdated', handleInventoryUpdate);
+        window.addEventListener('refreshAllProducts', handleRefreshAllProducts);
         
-        const response = await fetch(`${API_URL}/categories`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+        return () => {
+            window.removeEventListener('inventoryUpdated', handleInventoryUpdate);
+            window.removeEventListener('refreshAllProducts', handleRefreshAllProducts);
+        };
+    }, []);
+    
+    // Fetch categories from backend
+    const fetchCategories = async () => {
+        try {
+            console.log(' Fetching categories from:', `${API_URL}/categories`);
             
-            signal: AbortSignal.timeout(10000) 
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log(' Categories API response:', data);
-        
-        // Handle different response formats
-        let categoriesArray = [];
-        
-        if (Array.isArray(data)) {
-            categoriesArray = data;
-        } else if (data && Array.isArray(data.categories)) {
-            categoriesArray = data.categories;
-        } else if (data && Array.isArray(data.data)) {
-            categoriesArray = data.data;
-        } else if (data && typeof data === 'object') {
-            // If it's a single object or has nested structure
-            categoriesArray = Object.values(data).filter(item => 
-                item && typeof item === 'object' && item.name
-            );
-        }
-        
-        console.log(' Extracted categories array:', categoriesArray);
-        
-        // Get main categories (level 1) or all categories if no level specified
-        const mainCategories = categoriesArray
-            .filter(cat => cat && cat.name) 
-            .filter(cat => cat.level === 1 || !cat.level) 
-            
-        console.log(' Main categories to display:', mainCategories);
-        setCategories(mainCategories);
-        
-    } catch (error) {
-        console.error(' Error fetching categories:', error);
-        
-        if (error.name === 'TimeoutError') {
-            setError('Categories server is taking too long to respond. Please check if the backend is running.');
-        } else if (error.message.includes('Failed to fetch')) {
-            setError('Cannot connect to categories server. Please make sure the backend is running on http://localhost:5000');
-        } else {
-            setError(`Error loading categories: ${error.message}`);
-        }
-        
-        setCategories([]); 
-    }
-};
-// In ProductCatalog.jsx - Update the category filtering
-const fetchProducts = async () => {
-    try {
-        setLoading(true);
-        setError(null);
-        
-        const params = new URLSearchParams();
-
-        // Don't send category filter to backend - we'll filter client-side
-        // This is because backend expects category IDs but we have names
-
-        // Add search filter
-        if (searchQuery.trim()) {
-            params.append('search', searchQuery.trim());
-        }
-
-        // Add price filter
-        params.append('maxPrice', currentMaxPrice);
-        
-        // Add sort
-        const [sortField, sortDirection] = currentSort.split(':');
-        params.append('sort', `${sortField}:${sortDirection}`);
-
-        // Add flags
-        selectedFlags.forEach(flag => {
-            params.append(flag, 'true');
-        });
-
-        const queryString = params.toString();
-        const url = `${API_URL}/products?${queryString}`;
-
-        console.log('Fetching products from:', url);
-        
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`Failed to fetch products: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        let productsData = data.products || data || [];
-        
-        // Filter by category on client side
-        if (currentCategory !== 'all') {
-            productsData = productsData.filter(product => {
-                const productCategory = product.category?.name || product.category;
-                return productCategory?.toLowerCase().includes(currentCategory.toLowerCase());
+            const response = await fetch(`${API_URL}/categories`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                signal: AbortSignal.timeout(10000) 
             });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log(' Categories API response:', data);
+            
+            // Handle different response formats
+            let categoriesArray = [];
+            
+            if (Array.isArray(data)) {
+                categoriesArray = data;
+            } else if (data && Array.isArray(data.categories)) {
+                categoriesArray = data.categories;
+            } else if (data && Array.isArray(data.data)) {
+                categoriesArray = data.data;
+            } else if (data && typeof data === 'object') {
+                categoriesArray = Object.values(data).filter(item => 
+                    item && typeof item === 'object' && item.name
+                );
+            }
+            
+            console.log(' Extracted categories array:', categoriesArray);
+            
+            // Get main categories (level 1) or all categories if no level specified
+            const mainCategories = categoriesArray
+                .filter(cat => cat && cat.name) 
+                .filter(cat => cat.level === 1 || !cat.level);
+                
+            console.log(' Main categories to display:', mainCategories);
+            setCategories(mainCategories);
+            
+        } catch (error) {
+            console.error(' Error fetching categories:', error);
+            
+            if (error.name === 'TimeoutError') {
+                setError('Categories server is taking too long to respond. Please check if the backend is running.');
+            } else if (error.message.includes('Failed to fetch')) {
+                setError('Cannot connect to categories server. Please make sure the backend is running on http://localhost:5000');
+            } else {
+                setError(`Error loading categories: ${error.message}`);
+            }
+            
+            setCategories([]); 
         }
-        
-        console.log('Fetched products:', productsData.length);
-        setProducts(productsData);
-        
-    } catch (error) {
-        console.error('Error fetching products:', error);
-        setError('Failed to load products. Please check if the server is running.');
-        setProducts([]);
-    } finally {
-        setLoading(false);
-    }
-};
+    };
+
+    // Fetch products
+    const fetchProducts = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const params = new URLSearchParams();
+
+            // Add search filter
+            if (searchQuery.trim()) {
+                params.append('search', searchQuery.trim());
+            }
+
+            // Add price filter
+            params.append('maxPrice', currentMaxPrice);
+            
+            // Add sort
+            const [sortField, sortDirection] = currentSort.split(':');
+            params.append('sort', `${sortField}:${sortDirection}`);
+
+            // Add flags
+            selectedFlags.forEach(flag => {
+                params.append(flag, 'true');
+            });
+
+            const queryString = params.toString();
+            const url = `${API_URL}/products?${queryString}`;
+
+            console.log('Fetching products from:', url);
+            
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`Failed to fetch products: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            let productsData = data.products || data || [];
+            
+            // Filter by category on client side
+            if (currentCategory !== 'all') {
+                productsData = productsData.filter(product => {
+                    const productCategory = product.category?.name || product.category;
+                    return productCategory?.toLowerCase().includes(currentCategory.toLowerCase());
+                });
+            }
+            
+            console.log('Fetched products:', productsData.length);
+            
+            // Debug: Log inventory data for all products
+            if (debugMode) {
+                console.log('🧪 INVENTORY DEBUG FOR ALL PRODUCTS:');
+                productsData.forEach(product => {
+                    const availableStock = product.inventory ? 
+                        (product.inventory.stock - (product.inventory.reservedStock || 0)) : 0;
+                    
+                    console.log(`📦 ${product.name}:`, {
+                        stock: product.inventory?.stock,
+                        reserved: product.inventory?.reservedStock,
+                        available: availableStock
+                    });
+                });
+            }
+            
+            setProducts(productsData);
+            
+        } catch (error) {
+            console.error('Error fetching products:', error);
+            setError('Failed to load products. Please check if the server is running.');
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Handle category selection
     const handleCategoryClick = (categoryName) => {
@@ -167,7 +202,6 @@ const fetchProducts = async () => {
             setCurrentCategory('all');
             navigate('/products', { replace: true });
         } else {
-            // Convert category name to slug for the URL
             const categorySlug = categoryName.toLowerCase().replace(/\s+/g, '-');
             navigate(`/categories/${categorySlug}`, { replace: true });
         }
@@ -212,12 +246,33 @@ const fetchProducts = async () => {
         setIsSidebarOpen(!isSidebarOpen);
     };
 
+    // Debug function to test inventory data
+    const testInventoryDebug = async () => {
+        console.log('🧪 MANUAL INVENTORY DEBUG TEST');
+        
+        products.forEach(product => {
+            const availableStock = product.inventory ? 
+                (product.inventory.stock - (product.inventory.reservedStock || 0)) : 0;
+            
+            console.log('📦 PRODUCT INVENTORY:', {
+                name: product.name,
+                id: product._id,
+                stock: product.inventory?.stock,
+                reservedStock: product.inventory?.reservedStock,
+                availableStock: availableStock,
+                showsInStock: product.inventory?.stock > 0,
+                shouldShowAvailable: availableStock > 0
+            });
+        });
+        
+        alert('Check browser console for inventory debug info!');
+    };
+
     // Check authentication before adding to cart
     const handleAddToCart = (product) => {
         // Check if user is authenticated
         const user = localStorage.getItem('bloomsoko-user');
         if (!user) {
-            // Redirect to login page with return URL
             navigate('/login', { 
                 state: { from: '/products' },
                 replace: true 
@@ -233,6 +288,11 @@ const fetchProducts = async () => {
         const shouldBook = isFarmProduct && !isReady;
         
         addToCart(product, 1, shouldBook);
+        
+        // Refresh products to get updated inventory
+        setTimeout(() => {
+            fetchProducts();
+        }, 500);
         
         if (shouldBook) {
             alert(`📅 ${product.name} booked successfully! We'll contact you when ready.`);
@@ -258,7 +318,11 @@ const fetchProducts = async () => {
     const getProductBadges = (product) => {
         const badges = [];
         
-        if (product.flags?.isOutOfStock || product.inventory?.stock === 0) {
+        // Calculate available stock for badge logic
+        const availableStock = product.inventory ? 
+            (product.inventory.stock - (product.inventory.reservedStock || 0)) : 0;
+        
+        if (availableStock <= 0) {
             badges.push({ text: 'Out of Stock', class: 'outOfStock' });
         }
         
@@ -297,38 +361,6 @@ const fetchProducts = async () => {
         };
     };
 
-// Add this temporary debug function to your ProductCatalog.jsx
-const debugCategoriesAPI = async () => {
-    try {
-        console.log(' Testing categories API...');
-        const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-        const response = await fetch(`${API_URL}/categories`);
-        
-        console.log(' API Response status:', response.status);
-        console.log(' API Response ok:', response.ok);
-        
-        const data = await response.json();
-        console.log('RAW API RESPONSE:', data);
-        
-        // Check what type of data we got
-        console.log('🔸 Data type:', typeof data);
-        console.log('🔸 Is array?:', Array.isArray(data));
-        
-        if (data && typeof data === 'object') {
-            console.log('🔸 Object keys:', Object.keys(data));
-            if (data.categories) {
-                console.log('🔸 data.categories type:', typeof data.categories);
-                console.log('🔸 data.categories is array?:', Array.isArray(data.categories));
-            }
-        }
-        
-    } catch (error) {
-        console.error(' DEBUG API Error:', error);
-    }
-};
-
-
-
     // Clear all filters
     const clearAllFilters = () => {
         setCurrentCategory('all');
@@ -340,6 +372,25 @@ const debugCategoriesAPI = async () => {
 
     return (
         <div className={styles.productCatalog}>
+            {/* Debug Toggle Button */}
+            {debugMode && (
+                <div style={{
+                    position: 'fixed',
+                    top: '10px',
+                    right: '10px',
+                    zIndex: 1000,
+                    background: 'red',
+                    color: 'white',
+                    padding: '10px 15px',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+                }} onClick={testInventoryDebug}>
+                    🧪 Debug Inventory
+                </div>
+            )}
+
             {/* Use Navbar instead of custom header */}
             <Navbar />
 
@@ -366,9 +417,9 @@ const debugCategoriesAPI = async () => {
                         🔍 Search
                     </button>
                 </form>
-      
             </div>
-            
+            {/*  PROMOTIONS */}
+    <PromotionsDisplay position="top_banner" />
 
             {/* Header */}
             <div className={styles.shopHeader}>
@@ -537,6 +588,7 @@ const debugCategoriesAPI = async () => {
                             </div>
                         </div>
                     )}
+                    <PromotionsDisplay position="sidebar" />
                 </aside>
                 
                 {/* Products Grid */}
@@ -572,6 +624,10 @@ const debugCategoriesAPI = async () => {
                             const buttonText = isFarmProduct && !isReady ? 'Book Now' : 'Add to Cart';
                             const badges = getProductBadges(product);
                             const growingProgress = getGrowingProgress(product);
+
+                            // Calculate available stock properly
+                            const availableStock = product.inventory ? 
+                                (product.inventory.stock - (product.inventory.reservedStock || 0)) : 0;
 
                             return (
                                 <div key={product._id} className={styles.productCard}>
@@ -652,12 +708,23 @@ const debugCategoriesAPI = async () => {
                                         <div className={styles.stockInfo}>
                                             {isReady ? (
                                                 <>
-                                                    <span className={`${styles.stockStatus} ${product.inventory?.stock > 0 ? styles.inStock : styles.outOfStock}`}>
-                                                        {product.inventory?.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                                                    <span className={`${styles.stockStatus} ${availableStock > 0 ? styles.inStock : styles.outOfStock}`}>
+                                                        {availableStock > 0 ? 'In Stock' : 'Out of Stock'}
                                                     </span>
-                                                    {product.inventory?.stock > 0 && (
+                                                    {availableStock > 0 && (
                                                         <span className={styles.stockQuantity}>
-                                                            {product.inventory.stock} available
+                                                            {availableStock} available
+                                                            {/* Show detailed inventory info in debug mode */}
+                                                            {debugMode && product.inventory?.reservedStock > 0 && (
+                                                                <span style={{
+                                                                    fontSize: '0.7em', 
+                                                                    color: '#666', 
+                                                                    display: 'block',
+                                                                    fontStyle: 'italic'
+                                                                }}>
+                                                                    ({product.inventory.stock} total - {product.inventory.reservedStock} reserved)
+                                                                </span>
+                                                            )}
                                                         </span>
                                                     )}
                                                 </>
@@ -671,12 +738,9 @@ const debugCategoriesAPI = async () => {
                                         <button 
                                             className={`${styles.addToCart} ${styles['btn' + categoryClass.charAt(0).toUpperCase() + categoryClass.slice(1)]}`}
                                             onClick={() => handleAddToCart(product)}
-                                            disabled={product.flags?.isOutOfStock || (isReady && product.inventory?.stock === 0)}
+                                            disabled={availableStock === 0}
                                         >
-                                            {product.flags?.isOutOfStock || (isReady && product.inventory?.stock === 0) 
-                                                ? 'Out of Stock' 
-                                                : buttonText
-                                            }
+                                            {availableStock === 0 ? 'Out of Stock' : buttonText}
                                         </button>
 
                                         <Link 
@@ -690,6 +754,7 @@ const debugCategoriesAPI = async () => {
                             );
                         })
                     )}
+                    <PromotionsDisplay position="product_page" />
                 </main>
             </div>
         </div>

@@ -30,6 +30,8 @@ import OrderSuccess from './pages/OrderSuccess.jsx';
 import PaymentCallback from './components/PaymentCallback.jsx';
 import Orders from './pages/Orders.jsx';
 import Profile from './pages/Profile.jsx';
+import PromotionPopup from './components/PromotionPopup';
+
 
 // Customer Authentication Components
 import Login from './pages/Login.jsx';
@@ -117,6 +119,7 @@ function AppContent() {
             },
           }}
         />
+        <PromotionPopup />
         
         <Routes>
           {/* Customer Routes - Use customer styles */}

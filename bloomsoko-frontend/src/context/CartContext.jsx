@@ -195,27 +195,32 @@ export const CartProvider = ({ children }) => {
             const result = await response.json();
 
             if (response.ok) {
-                console.log('✅ Add to cart success:', result);
-                
-                dispatch({ type: 'ADD_TO_CART', payload: result });
-                await fetchCart(); // Refresh cart to get latest state
-                
-                // Emit cart update event for real-time updates
-                window.dispatchEvent(new Event('cartUpdated'));
-                
-                toast.success(isBooking ? 'Product booked successfully!' : 'Product added to cart!');
-                return result;
-            } else {
-                console.error('❌ Add to cart failed:', result);
-                throw new Error(result.message || 'Failed to add to cart');
-            }
-        } catch (error) {
-            console.error('❌ Error adding to cart:', error);
-            toast.error(error.message || 'Failed to add to cart');
-            dispatch({ type: 'SET_ERROR', payload: error.message });
-            throw error;
+            console.log('✅ Add to cart success:', result);
+            
+            dispatch({ type: 'ADD_TO_CART', payload: result });
+            await fetchCart(); // Refresh cart to get latest state
+            
+            // 🔥 CRITICAL: Emit event to refresh product data across the app
+            window.dispatchEvent(new CustomEvent('inventoryUpdated', { 
+                detail: { productId: product._id } 
+            }));
+            
+            // Emit cart update event for real-time updates
+            window.dispatchEvent(new Event('cartUpdated'));
+            
+            toast.success(isBooking ? 'Product booked successfully!' : 'Product added to cart!');
+            return result;
+        } else {
+            console.error('❌ Add to cart failed:', result);
+            throw new Error(result.message || 'Failed to add to cart');
         }
-    };
+    } catch (error) {
+        console.error('❌ Error adding to cart:', error);
+        toast.error(error.message || 'Failed to add to cart');
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+    }
+};
 
     const removeFromCart = async (itemId) => {
         try {

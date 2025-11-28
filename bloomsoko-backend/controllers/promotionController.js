@@ -35,24 +35,35 @@ export const getPromotions = async (req, res) => {
   }
 };
 
-// Get active promotions for frontend
+
 export const getActivePromotions = async (req, res) => {
   try {
     const now = new Date();
+    const { position } = req.query;
     
-    const promotions = await Promotion.find({
+    let query = {
       status: 'active',
       startDate: { $lte: now },
       endDate: { $gte: now },
-    })
-    .sort({ priority: -1, isFeatured: -1 })
-    .limit(10);
+    };
+
+   
+    if (position && position !== 'all') {
+      query.position = position;
+    }
+
+    const promotions = await Promotion.find(query)
+      .sort({ priority: -1, isFeatured: -1 })
+      .limit(10);
+
+    console.log(`📊 Found ${promotions.length} active promotions for position: ${position || 'all'}`);
 
     res.json({
       success: true,
       data: promotions,
     });
   } catch (error) {
+    console.error('Get active promotions error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching active promotions',
