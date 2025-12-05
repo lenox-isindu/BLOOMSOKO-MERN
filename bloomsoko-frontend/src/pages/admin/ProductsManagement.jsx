@@ -9,38 +9,75 @@ const ProductsManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // SIMPLE FETCH - No API service, direct fetch
+ 
   const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      console.log('🔄 Fetching products...');
-      
-      const response = await fetch('http://localhost:5000/api/admin/products');
-      
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('✅ API Response:', data);
-      
-      // Your backend returns { products: [], totalPages, currentPage, total }
-      if (data.products) {
-        setProducts(data.products);
-        console.log(`✅ Loaded ${data.products.length} products`);
-      } else {
-        console.warn('❌ No products found in response');
-        setProducts([]);
-      }
-      
-    } catch (error) {
-      console.error('❌ Fetch error:', error);
-      toast.error('Failed to load products. Check console.');
-      setProducts([]);
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    
+    // Get the API URL from environment or use default
+    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+    
+    console.log('🔄 Fetching products from:', `${API_URL}/admin/products`);
+    
+    // Get admin token from storage
+    const adminToken = localStorage.getItem('adminToken');
+    
+    // Prepare headers with authorization
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    // Add authorization header if token exists
+    if (adminToken) {
+      headers['Authorization'] = `Bearer ${adminToken}`;
     }
-  };
+    
+    const response = await fetch(`${API_URL}/admin/products`, {
+      headers: headers
+    });
+    
+    // Check for authentication errors
+    if (response.status === 401 || response.status === 403) {
+      toast.error('Admin authentication required. Please login again.');
+      // Optionally redirect to admin login
+      // window.location.href = '/admin/login';
+      setProducts([]);
+      return;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ API Response:', data);
+    
+    // Your backend returns { products: [], totalPages, currentPage, total }
+    if (data.products) {
+      setProducts(data.products);
+      console.log(`✅ Loaded ${data.products.length} products`);
+    } else {
+      console.warn('❌ No products found in response');
+      setProducts([]);
+    }
+    
+  } catch (error) {
+    console.error('❌ Fetch error:', error);
+    
+    // Better error messages based on error type
+    if (error.message.includes('Failed to fetch')) {
+      toast.error('Cannot connect to server. Check if backend is running.');
+    } else if (error.message.includes('NetworkError')) {
+      toast.error('Network error. Please check your connection.');
+    } else {
+      toast.error('Failed to load products. Check console for details.');
+    }
+    
+    setProducts([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchProducts();
