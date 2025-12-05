@@ -21,42 +21,42 @@ const AdminLogin = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-      // Call the actual backend API
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+  try {
+    // ⭐ FIXED LINE: Changed from /auth/login to /admin/auth/login
+    const response = await fetch(`${API_URL}/admin/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (data.success && data.data.user.role === 'admin') {
-        // Store admin session with real data from backend
-        localStorage.setItem('adminToken', data.data.token);
-        localStorage.setItem('adminUser', JSON.stringify(data.data.user));
-        
-        toast.success(`Welcome back, ${data.data.user.firstName}!`);
-        navigate('/admin');
+    if (data.success && data.data.user.role === 'admin') {
+      // Store admin session with real data from backend
+      localStorage.setItem('adminToken', data.data.token);
+      localStorage.setItem('adminUser', JSON.stringify(data.data.user));
+      
+      toast.success(`Welcome back, ${data.data.user.firstName}!`);
+      navigate('/admin');
+    } else {
+      if (data.data?.user?.role !== 'admin') {
+        toast.error('Access denied. Admin privileges required.');
       } else {
-        if (data.data?.user?.role !== 'admin') {
-          toast.error('Access denied. Admin privileges required.');
-        } else {
-          toast.error(data.message || 'Invalid admin credentials');
-        }
+        toast.error(data.message || 'Invalid admin credentials');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      toast.error('Login failed. Please try again.');
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('Login error:', error);
+    toast.error('Login failed. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={{
