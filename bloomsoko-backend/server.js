@@ -7,7 +7,7 @@ dotenv.config();
 
 const app = express();
 
-// SIMPLIFIED CORS Configuration
+// CORS Configuration
 app.use(cors({
   origin: [
     'https://bloomsoko.vercel.app',
@@ -19,12 +19,11 @@ app.use(cors({
   allowedHeaders: [
     'Content-Type', 
     'Authorization', 
-    'userid',      // Your custom header
+    'userid',
     'x-user-id'
   ]
 }));
 
-// Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -73,8 +72,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
-    timestamp: new Date().toISOString(),
-    message: 'Backend is running with CORS configured'
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -83,17 +81,22 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'Bloomsoko Backend is running!',
     api: 'All API endpoints are under /api/',
-    health: '/api/health',
-    cors: 'Configured for https://bloomsoko.vercel.app'
+    health: '/api/health'
   });
 });
 
-// 404 handler for undefined API routes
-app.all('/api/*', (req, res) => {
+// ✅ FIXED: Use a simple 404 handler without wildcard issues
+app.use((req, res, next) => {
   res.status(404).json({ 
     success: false,
-    message: `API endpoint ${req.originalUrl} not found`,
-    available: '/api/auth, /api/cart, /api/products, etc.'
+    message: `Route ${req.originalUrl} not found`,
+    available: [
+      '/api/auth/login',
+      '/api/auth/register',
+      '/api/cart',
+      '/api/products',
+      '/api/health'
+    ]
   });
 });
 
@@ -101,5 +104,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 CORS enabled for: https://bloomsoko.vercel.app`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
 });
